@@ -34,20 +34,41 @@ let auth = null;
 let sheets = null;
 let calendar = null;
 
-const credentialsPath = path.join(__dirname, 'credentials.json');
+// Intentar cargar credenciales desde variable de entorno primero
+if (process.env.GOOGLE_CREDENTIALS) {
+  try {
+    const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+    auth = new google.auth.GoogleAuth({
+      credentials: credentials,
+      scopes: SCOPES,
+    });
+    sheets = google.sheets({ version: 'v4', auth });
+    calendar = google.calendar({ version: 'v3', auth });
+    console.log('✅ Credenciales de Service Account cargadas desde variable de entorno');
+  } catch (error) {
+    console.error('❌ Error al parsear GOOGLE_CREDENTIALS:', error.message);
+  }
+}
 
-if (fs.existsSync(credentialsPath)) {
-  auth = new google.auth.GoogleAuth({
-    keyFile: credentialsPath,
-    scopes: SCOPES,
-  });
-  sheets = google.sheets({ version: 'v4', auth });
-  calendar = google.calendar({ version: 'v3', auth });
-  console.log('Credenciales de Service Account cargadas correctamente');
-} else {
-  console.warn('');
-  console.warn('ARCHIVO credentials.json NO ENCONTRADO');
-  console.warn('   El servidor arrancara pero las llamadas a Google fallaran.');
+// Si no hay variable de entorno, intentar cargar desde archivo
+if (!auth) {
+  const credentialsPath = path.join(__dirname, 'credentials.json');
+  if (fs.existsSync(credentialsPath)) {
+    auth = new google.auth.GoogleAuth({
+      keyFile: credentialsPath,
+      scopes: SCOPES,
+    });
+    sheets = google.sheets({ version: 'v4', auth });
+    calendar = google.calendar({ version: 'v3', auth });
+    console.log('✅ Credenciales de Service Account cargadas desde archivo');
+  } else {
+    console.warn('');
+    console.warn('⚠️  CREDENCIALES NO ENCONTRADAS');
+    console.warn('   Opciones:');
+    console.warn('   1. Agregar variable de entorno GOOGLE_CREDENTIALS con el JSON completo');
+    console.warn('   2. Subir archivo credentials.json en la carpeta /app/');
+    console.warn('   El servidor arrancará pero las llamadas a Google fallarán.');
+    console.warn('');
   console.warn('');
 }
 
