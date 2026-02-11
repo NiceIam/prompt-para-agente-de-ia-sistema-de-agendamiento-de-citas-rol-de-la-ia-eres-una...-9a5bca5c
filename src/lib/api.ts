@@ -6,6 +6,7 @@ import {
   MAX_APPOINTMENTS_PER_SLOT,
   normalizeHour,
 } from "./types";
+import { API_BASE_URL } from "./config";
 
 /**
  * Normaliza una fecha que viene del Sheet: "12/2/2026" -> "12/02/2026"
@@ -25,9 +26,9 @@ function normalizeDate(fecha: string): string {
 /**
  * Base URL de la API.
  * En desarrollo, Vite proxy redirige /api -> http://localhost:3000
- * En produccion, cambiar a la URL del servidor desplegado.
+ * En produccion, usa la variable de entorno VITE_API_URL
  */
-const API_BASE = "/api";
+const API_BASE = API_BASE_URL;
 
 // ================================================================
 // FUNCIONES PUBLICAS
