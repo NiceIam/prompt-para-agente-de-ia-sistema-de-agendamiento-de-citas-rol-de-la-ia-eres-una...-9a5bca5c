@@ -1,4 +1,4 @@
-import { Clock, Loader2 } from "lucide-react";
+import { Clock, Loader2, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TimeSlot } from "@/lib/types";
 
@@ -7,6 +7,7 @@ interface TimeSlotPickerProps {
   selectedSlot: string | null;
   onSelectSlot: (hour: string) => void;
   loading: boolean;
+  duration: number; // duracion de la cita en minutos (30 o 60)
 }
 
 export function TimeSlotPicker({
@@ -14,6 +15,7 @@ export function TimeSlotPicker({
   selectedSlot,
   onSelectSlot,
   loading,
+  duration,
 }: TimeSlotPickerProps) {
   if (loading) {
     return (
@@ -32,6 +34,16 @@ export function TimeSlotPicker({
       <h2 className="text-lg font-semibold font-display text-foreground">
         Selecciona un horario
       </h2>
+
+      {/* Banner informativo de duracion */}
+      <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-800 dark:bg-blue-950/30 dark:border-blue-900 dark:text-blue-300">
+        <Info className="w-4 h-4 flex-shrink-0" />
+        <p className="text-sm">
+          {duration === 60
+            ? "Tu cita dura 1 hora. Se reservarán 2 bloques consecutivos de 30 minutos."
+            : "Tu cita dura 30 minutos."}
+        </p>
+      </div>
 
       <SlotGroup title="Mañana" icon="🌅" slots={morningSlots} selectedSlot={selectedSlot} onSelect={onSelectSlot} />
       <SlotGroup title="Tarde" icon="☀️" slots={afternoonSlots} selectedSlot={selectedSlot} onSelect={onSelectSlot} />
@@ -78,7 +90,7 @@ function SlotGroup({
               {slot.label}
             </span>
             <span className={cn("text-xs", slot.available ? "text-accent" : "text-muted-foreground")}>
-              {slot.available ? `${slot.spotsLeft} disponible${slot.spotsLeft > 1 ? "s" : ""}` : "Lleno"}
+              {slot.available ? "Disponible" : "No disponible"}
             </span>
           </button>
         ))}

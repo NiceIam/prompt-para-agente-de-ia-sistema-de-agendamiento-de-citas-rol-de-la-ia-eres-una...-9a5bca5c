@@ -3,8 +3,9 @@ import {
   CitaBackend,
   TimeSlot,
   TIME_SLOTS_CONFIG,
-  MAX_APPOINTMENTS_PER_SLOT,
+  PERIOD_LIMITS,
   normalizeHour,
+  hourToMinutes,
 } from "./types";
 import { API_BASE_URL } from "./config";
 
@@ -50,25 +51,32 @@ export async function fetchAllCitas(): Promise<CitaBackend[]> {
 }
 
 /**
- * Calcula la disponibilidad de horarios para una fecha y doctora dadas.
+ * Calcula la disponibilidad de horarios para una fecha, doctora y duracion dadas.
  * Descarga TODAS las citas y filtra en el frontend.
  *
  * Logica:
- * - Cada doctora puede tener MAXIMO 1 cita por horario.
- * - Si la doctora seleccionada ya tiene cita a esa hora -> NO disponible.
- * - Si ambas doctoras tienen cita a esa hora -> slot lleno para todos.
+ * - Los slots son cada 30 minutos.
+ * - Una cita de 30 min ocupa 1 slot; una cita de 60 min ocupa 2 slots consecutivos.
+ * - Si la cita de 60 min se sale del periodo (mañana o tarde), no se permite.
+ * - Se usa deteccion de solapamiento: [inicio_propuesto, fin_propuesto) vs [inicio_existente, fin_existente).
+ * - Se incluyen citas "Activa" y "Reagendada" como ocupadas (ambas son citas vigentes).
  */
 export async function getAvailability(
   date: string,
-  doctorName: string
+  doctorName: string,
+  duration: number
 ): Promise<TimeSlot[]> {
   // date viene como DD/MM/AAAA
   const allCitas = await fetchAllCitas();
 
-  // Filtrar solo citas activas para esa fecha (normalizar por si el Sheet no padea)
   const normalizedDate = normalizeDate(date);
-  const citasEnFecha = allCitas.filter(
-    (c) => c.estado === "Activa" && normalizeDate(c.fecha) === normalizedDate
+
+  // Citas vigentes de ESTA doctora en esta fecha
+  const citasDoctorEnFecha = allCitas.filter(
+    (c) =>
+      (c.estado === "Activa" || c.estado === "Reagendada") &&
+      normalizeDate(c.fecha) === normalizedDate &&
+      c.doctora === doctorName
   );
 
   // Armar la lista de slots con disponibilidad
@@ -84,21 +92,29 @@ export async function getAvailability(
   ];
 
   return allSlots.map((slot) => {
-    // Citas de ESTA doctora en este horario
-    const citasDoctora = citasEnFecha.filter(
-      (c) => normalizeHour(c.hora) === slot.hour && c.doctora === doctorName
-    ).length;
+    const slotStartMin = hourToMinutes(slot.hour);
+    const slotEndMin = slotStartMin + duration;
 
-    // Total de citas en este horario (ambas doctoras)
-    const citasTotal = citasEnFecha.filter(
-      (c) => normalizeHour(c.hora) === slot.hour
-    ).length;
+    // ¿La cita propuesta cabe dentro del periodo (no se sale a almuerzo ni cierre)?
+    const periodLimit = PERIOD_LIMITS[slot.period];
+    if (slotEndMin > periodLimit.end) {
+      return { ...slot, available: false, spotsLeft: 0 };
+    }
 
-    // La doctora NO esta disponible si ya tiene 1 cita a esa hora
-    // El slot esta completamente lleno si ya hay 2 citas (ambas doctoras ocupadas)
-    const doctoraBusy = citasDoctora >= 1;
-    const slotFull = citasTotal >= MAX_APPOINTMENTS_PER_SLOT;
-    const available = !doctoraBusy && !slotFull;
+    // ¿La doctora tiene alguna cita que se solape con el rango propuesto?
+    const doctorConflict = citasDoctorEnFecha.some((cita) => {
+      const citaStart = hourToMinutes(normalizeHour(cita.hora));
+      // Para citas antiguas sin horaFin/duracion, asumir 60 min por seguridad
+      const citaDuration = cita.duracion ? parseInt(cita.duracion) : 60;
+      const citaEnd = cita.horaFin
+        ? hourToMinutes(normalizeHour(cita.horaFin))
+        : citaStart + citaDuration;
+
+      // Solapamiento: [A, B) se solapa con [C, D) si A < D && C < B
+      return slotStartMin < citaEnd && citaStart < slotEndMin;
+    });
+
+    const available = !doctorConflict;
 
     return {
       ...slot,
@@ -119,13 +135,16 @@ export async function createAppointment(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      cedula: data.cedula, // Numero de identificacion del paciente
+      cedula: data.cedula,
       nombre: data.nombre,
       correo: data.correo,
       telefono: data.telefono,
       fecha: data.fecha, // DD/MM/AAAA
-      hora: data.hora, // HH:MM
-      doctora: data.doctora, // Doctora seleccionada
+      hora: data.hora, // HH:MM (inicio)
+      horaFin: data.horaFin, // HH:MM (fin)
+      duracion: data.duracion, // 30 o 60
+      servicio: data.servicio, // Nombre del servicio
+      doctora: data.doctora, // Doctora asignada
     }),
   });
 

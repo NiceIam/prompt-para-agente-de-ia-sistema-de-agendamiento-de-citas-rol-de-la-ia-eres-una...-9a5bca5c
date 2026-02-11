@@ -79,17 +79,20 @@ const CALENDAR_ID = process.env.CALENDAR_ID || 'primary';
 
 /**
  * ESTRUCTURA DEL GOOGLE SHEET:
- * Columna A = ID (cedula / numero de identificacion del paciente)
- * Columna B = Nombre
- * Columna C = Correo
- * Columna D = Telefono
- * Columna E = Fecha (DD/MM/AAAA)
- * Columna F = Hora (HH:MM)
- * Columna G = Estado (Activa | Reagendada | Cancelada | Completada)
- * Columna H = Accion (Agendamiento | Reagendamiento | Cancelacion)
- * Columna I = Doctora (opcional)
- * Columna J = FechaCreacion (ISO timestamp)
- * Columna K = FechaActualizacion (ISO timestamp)
+ * Columna A  = ID (cedula / numero de identificacion del paciente)
+ * Columna B  = Nombre
+ * Columna C  = Correo
+ * Columna D  = Telefono
+ * Columna E  = Fecha (DD/MM/AAAA)
+ * Columna F  = Hora (HH:MM) - hora de inicio
+ * Columna G  = Estado (Activa | Reagendada | Cancelada | Completada)
+ * Columna H  = Accion (Agendamiento | Reagendamiento | Cancelacion)
+ * Columna I  = Servicio (nombre del servicio + tipo de cita)
+ * Columna J  = HoraFin (HH:MM) - hora de finalizacion
+ * Columna K  = Duracion (minutos: 30 o 60)
+ * Columna L  = Doctora
+ * Columna M  = FechaCreacion (ISO timestamp)
+ * Columna N  = FechaActualizacion (ISO timestamp)
  */
 
 // ================================================================
@@ -109,6 +112,39 @@ app.use('/api/citas', requireAuth);
 app.use('/api/calendar', requireAuth);
 
 // ================================================================
+// HELPERS
+// ================================================================
+
+/**
+ * Construye una fecha ISO 8601 a partir de fecha DD/MM/AAAA y hora HH:MM
+ * con offset de Colombia (-05:00).
+ */
+function buildDateTime(fecha, hora, minutosExtra = 0) {
+  const [dia, mes, anio] = fecha.split('/').map(Number);
+  const [h, m] = hora.split(':').map(Number);
+
+  const date = new Date(anio, mes - 1, dia, h, m);
+  if (minutosExtra > 0) {
+    date.setMinutes(date.getMinutes() + minutosExtra);
+  }
+
+  const pad = (n) => n.toString().padStart(2, '0');
+  return `${anio}-${pad(mes)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:00-05:00`;
+}
+
+/**
+ * Calcula HoraFin a partir de hora (HH:MM) y duracion (minutos).
+ * Ej: calcHoraFin("08:00", 60) -> "09:00"
+ */
+function calcHoraFin(hora, duracion) {
+  const [h, m] = hora.split(':').map(Number);
+  const totalMin = h * 60 + m + (parseInt(duracion) || 60);
+  const endH = Math.floor(totalMin / 60);
+  const endM = totalMin % 60;
+  return `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
+}
+
+// ================================================================
 // ENDPOINTS - CITAS (Google Sheets)
 // ================================================================
 
@@ -120,23 +156,26 @@ app.get('/api/citas', async (req, res) => {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A2:K`,
+      range: `${SHEET_NAME}!A2:N`,
     });
 
     const rows = response.data.values || [];
     const citas = rows.map((row, index) => ({
       id: (index + 2).toString(),
-      cedula: row[0] || '',
-      nombre: row[1] || '',
-      correo: row[2] || '',
-      telefono: row[3] || '',
-      fecha: row[4] || '',
-      hora: row[5] || '',
-      estado: row[6] || 'Activa',
-      accion: row[7] || 'Agendamiento',
-      doctora: row[8] || '',
-      createdAt: row[9] || '',
-      updatedAt: row[10] || '',
+      cedula: row[0] || '',      // A
+      nombre: row[1] || '',      // B
+      correo: row[2] || '',      // C
+      telefono: row[3] || '',    // D
+      fecha: row[4] || '',       // E
+      hora: row[5] || '',        // F
+      estado: row[6] || 'Activa', // G
+      accion: row[7] || 'Agendamiento', // H
+      servicio: row[8] || '',    // I
+      horaFin: row[9] || '',     // J
+      duracion: row[10] || '',   // K
+      doctora: row[11] || '',    // L
+      createdAt: row[12] || '',  // M
+      updatedAt: row[13] || '',  // N
     }));
 
     res.json({ success: true, data: citas });
@@ -152,34 +191,59 @@ app.get('/api/citas', async (req, res) => {
  */
 app.post('/api/citas', async (req, res) => {
   try {
-    const { cedula, nombre, correo, telefono, fecha, hora, doctora } = req.body;
+    const { cedula, nombre, correo, telefono, fecha, hora, doctora, servicio, duracion } = req.body;
 
     if (!cedula || !nombre || !correo || !telefono || !fecha || !hora) {
       return res.status(400).json({ success: false, message: 'Faltan datos obligatorios' });
     }
 
     const now = new Date().toISOString();
+    const dur = parseInt(duracion) || 60;
+    const horaFin = calcHoraFin(hora, dur);
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A:K`,
+      range: `${SHEET_NAME}!A:N`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
       requestBody: {
-        values: [[cedula, nombre, correo, telefono, fecha, hora, 'Activa', 'Agendamiento', doctora || '', now, now]],
+        values: [[
+          cedula,            // A: ID
+          nombre,            // B: Nombre
+          correo,            // C: Correo
+          telefono,          // D: Telefono
+          fecha,             // E: Fecha
+          hora,              // F: Hora
+          'Activa',          // G: Estado
+          'Agendamiento',    // H: Accion
+          servicio || '',    // I: Servicio
+          horaFin,           // J: Hora fin
+          dur.toString(),    // K: Duracion
+          doctora || '',     // L: Doctora
+          now,               // M: FechaCreacion
+          now,               // N: FechaActualizacion
+        ]],
       },
     });
 
     let eventId = '';
     try {
       const startDateTime = buildDateTime(fecha, hora);
-      const endDateTime = buildDateTime(fecha, hora, 60);
+      const endDateTime = buildDateTime(fecha, hora, dur);
 
       const event = await calendar.events.insert({
         calendarId: CALENDAR_ID,
         requestBody: {
-          summary: `Cita Odontologica - ${nombre}`,
-          description: `Paciente: ${nombre}\nCedula: ${cedula}\nTelefono: ${telefono}\nCorreo: ${correo}`,
+          summary: `${servicio || 'Cita Odontologica'} - ${nombre}`,
+          description: [
+            `Paciente: ${nombre}`,
+            `Cedula: ${cedula}`,
+            `Telefono: ${telefono}`,
+            `Correo: ${correo}`,
+            `Servicio: ${servicio || 'No especificado'}`,
+            `Doctora: ${doctora || 'No asignada'}`,
+            `Duracion: ${dur} minutos`,
+          ].join('\n'),
           location: 'Orthodonto - Clinica Odontologica',
           start: { dateTime: startDateTime, timeZone: 'America/Bogota' },
           end: { dateTime: endDateTime, timeZone: 'America/Bogota' },
@@ -197,7 +261,7 @@ app.post('/api/citas', async (req, res) => {
       console.error('Calendar error (cita SI guardada en Sheets):', calErr.message);
     }
 
-    console.log(`Cita agendada: ${nombre} - ${fecha} ${hora}`);
+    console.log(`Cita agendada: ${nombre} - ${servicio || 'Sin servicio'} - ${fecha} ${hora}-${horaFin} (${dur}min)`);
     res.json({ success: true, message: 'Cita agendada exitosamente', eventId });
   } catch (error) {
     console.error('Error al agendar cita:', error.message);
@@ -207,7 +271,7 @@ app.post('/api/citas', async (req, res) => {
 
 /**
  * PUT /api/citas/:id
- * Reagendar una cita (actualiza fecha/hora en Sheets)
+ * Reagendar una cita (actualiza fecha/hora en Sheets, recalcula HoraFin)
  */
 app.put('/api/citas/:id', async (req, res) => {
   try {
@@ -220,34 +284,42 @@ app.put('/api/citas/:id', async (req, res) => {
 
     const now = new Date().toISOString();
 
+    // Leer la fila actual completa (A:N)
     const current = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A${rowNumber}:K${rowNumber}`,
+      range: `${SHEET_NAME}!A${rowNumber}:N${rowNumber}`,
     });
     const row = (current.data.values && current.data.values[0]) || [];
 
+    // Preservar la duracion original (col K, index 10); si no existe, asumir 60 min
+    const originalDuracion = parseInt(row[10]) || 60;
+    const newHoraFin = calcHoraFin(hora, originalDuracion);
+
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A${rowNumber}:K${rowNumber}`,
+      range: `${SHEET_NAME}!A${rowNumber}:N${rowNumber}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [[
-          row[0] || '',
-          row[1] || '',
-          row[2] || '',
-          row[3] || '',
-          fecha,
-          hora,
-          'Reagendada',
-          'Reagendamiento',
-          row[8] || '',
-          row[9] || '',
-          now,
+          row[0] || '',   // A: cedula (se preserva)
+          row[1] || '',   // B: nombre (se preserva)
+          row[2] || '',   // C: correo (se preserva)
+          row[3] || '',   // D: telefono (se preserva)
+          fecha,          // E: nueva fecha
+          hora,           // F: nueva hora
+          'Reagendada',   // G: estado
+          'Reagendamiento', // H: accion
+          row[8] || '',   // I: servicio (se preserva)
+          newHoraFin,     // J: hora fin (recalculada)
+          row[10] || originalDuracion.toString(), // K: duracion (se preserva)
+          row[11] || '',  // L: doctora (se preserva)
+          row[12] || '',  // M: fechaCreacion (se preserva)
+          now,            // N: fechaActualizacion
         ]],
       },
     });
 
-    console.log(`Cita reagendada: fila ${rowNumber} -> ${fecha} ${hora}`);
+    console.log(`Cita reagendada: fila ${rowNumber} -> ${fecha} ${hora}-${newHoraFin} (${originalDuracion}min)`);
     res.json({ success: true, message: 'Cita reagendada exitosamente' });
   } catch (error) {
     console.error('Error al reagendar cita:', error.message);
@@ -273,7 +345,7 @@ app.delete('/api/citas/:id', async (req, res) => {
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!K${rowNumber}`,
+      range: `${SHEET_NAME}!N${rowNumber}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [[now]] },
     });
@@ -292,15 +364,16 @@ app.delete('/api/citas/:id', async (req, res) => {
 
 app.post('/api/calendar/events', async (req, res) => {
   try {
-    const { nombre, correo, telefono, fecha, hora } = req.body;
+    const { nombre, correo, telefono, fecha, hora, duracion, servicio } = req.body;
+    const dur = parseInt(duracion) || 60;
     const startDateTime = buildDateTime(fecha, hora);
-    const endDateTime = buildDateTime(fecha, hora, 60);
+    const endDateTime = buildDateTime(fecha, hora, dur);
 
     const event = await calendar.events.insert({
       calendarId: CALENDAR_ID,
       requestBody: {
-        summary: `Cita Odontologica - ${nombre}`,
-        description: `Paciente: ${nombre}\nTelefono: ${telefono}\nCorreo: ${correo}`,
+        summary: `${servicio || 'Cita Odontologica'} - ${nombre}`,
+        description: `Paciente: ${nombre}\nTelefono: ${telefono}\nCorreo: ${correo}\nServicio: ${servicio || 'No especificado'}\nDuracion: ${dur} minutos`,
         location: 'Orthodonto - Clinica Odontologica',
         start: { dateTime: startDateTime, timeZone: 'America/Bogota' },
         end: { dateTime: endDateTime, timeZone: 'America/Bogota' },
@@ -315,16 +388,17 @@ app.post('/api/calendar/events', async (req, res) => {
 
 app.put('/api/calendar/events/:eventId', async (req, res) => {
   try {
-    const { nombre, correo, telefono, fecha, hora } = req.body;
+    const { nombre, correo, telefono, fecha, hora, duracion, servicio } = req.body;
+    const dur = parseInt(duracion) || 60;
     const startDateTime = buildDateTime(fecha, hora);
-    const endDateTime = buildDateTime(fecha, hora, 60);
+    const endDateTime = buildDateTime(fecha, hora, dur);
 
     await calendar.events.patch({
       calendarId: CALENDAR_ID,
       eventId: req.params.eventId,
       requestBody: {
-        summary: `Cita Odontologica (Reagendada) - ${nombre}`,
-        description: `Paciente: ${nombre}\nTelefono: ${telefono}\nCorreo: ${correo}\n\nCITA REAGENDADA`,
+        summary: `${servicio || 'Cita Odontologica'} (Reagendada) - ${nombre}`,
+        description: `Paciente: ${nombre}\nTelefono: ${telefono}\nCorreo: ${correo}\nServicio: ${servicio || 'No especificado'}\nDuracion: ${dur} minutos\n\nCITA REAGENDADA`,
         start: { dateTime: startDateTime, timeZone: 'America/Bogota' },
         end: { dateTime: endDateTime, timeZone: 'America/Bogota' },
       },
@@ -361,23 +435,6 @@ app.get('/api/health', (req, res) => {
     spreadsheetId: SPREADSHEET_ID ? 'configurado' : 'falta',
   });
 });
-
-// ================================================================
-// HELPERS
-// ================================================================
-
-function buildDateTime(fecha, hora, minutosExtra = 0) {
-  const [dia, mes, anio] = fecha.split('/').map(Number);
-  const [h, m] = hora.split(':').map(Number);
-
-  const date = new Date(anio, mes - 1, dia, h, m);
-  if (minutosExtra > 0) {
-    date.setMinutes(date.getMinutes() + minutosExtra);
-  }
-
-  const pad = (n) => n.toString().padStart(2, '0');
-  return `${anio}-${pad(mes)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:00-05:00`;
-}
 
 // ================================================================
 // INICIAR SERVIDOR

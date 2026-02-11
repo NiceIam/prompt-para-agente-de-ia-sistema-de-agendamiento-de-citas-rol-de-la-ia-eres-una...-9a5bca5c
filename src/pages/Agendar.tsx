@@ -4,52 +4,93 @@ import { es } from "date-fns/locale";
 import { CalendarHeart, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StepIndicator } from "@/components/StepIndicator";
-import { DoctorSelect } from "@/components/DoctorSelect";
+import { ServiceSelect } from "@/components/ServiceSelect";
 import { TimeSlotPicker } from "@/components/TimeSlotPicker";
 import { PatientForm } from "@/components/PatientForm";
 import { Confirmation } from "@/components/Confirmation";
 import { useToast } from "@/hooks/use-toast";
-import { Doctor, PatientData, TimeSlot, TIME_SLOTS_CONFIG, dateToDDMMYYYY } from "@/lib/types";
+import {
+  ServiceCategory,
+  AppointmentType,
+  PatientData,
+  TimeSlot,
+  TIME_SLOTS_CONFIG,
+  dateToDDMMYYYY,
+  getDoctorForService,
+  hourToMinutes,
+  minutesToHour,
+  minutesToLabel,
+} from "@/lib/types";
 import { getAvailability, createAppointment } from "@/lib/api";
 
-const STEPS = ["Doctora y Fecha", "Horario", "Datos"];
+const STEPS = ["Servicio y Fecha", "Horario", "Datos"];
 
 export default function Index() {
   const { toast } = useToast();
   const [step, setStep] = useState(1);
-  const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
+
+  // Step 1: servicio, tipo de cita, fecha
+  const [selectedService, setSelectedService] =
+    useState<ServiceCategory | null>(null);
+  const [selectedAppointmentType, setSelectedAppointmentType] =
+    useState<AppointmentType | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
+
+  // Step 2: horario
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
+
+  // Step 3: datos
   const [submitting, setSubmitting] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [patientName, setPatientName] = useState("");
 
+  // Doctora auto-asignada
+  const doctor = selectedService
+    ? getDoctorForService(selectedService.id)
+    : null;
+
+  // Duracion de la cita seleccionada
+  const duration = selectedAppointmentType?.duration ?? 30;
+
+  // ----------------------------------------------------------
+  // Cargar disponibilidad cuando se pasa al paso 2
+  // ----------------------------------------------------------
+
   const fetchSlots = useCallback(async () => {
-    if (!selectedDoctor || !selectedDate) return;
+    if (!doctor || !selectedDate || !selectedAppointmentType) return;
     setLoadingSlots(true);
     try {
-      // Convertir la fecha a DD/MM/AAAA y pasar el nombre de la doctora
       const fechaStr = dateToDDMMYYYY(selectedDate);
-      const data = await getAvailability(fechaStr, selectedDoctor.name);
+      const data = await getAvailability(
+        fechaStr,
+        doctor.name,
+        selectedAppointmentType.duration
+      );
       setSlots(data);
     } catch {
       toast({
         title: "Error",
-        description: "No se pudo cargar la disponibilidad. Verifica que el servidor esté activo.",
+        description:
+          "No se pudo cargar la disponibilidad. Verifica que el servidor esté activo.",
         variant: "destructive",
       });
     } finally {
       setLoadingSlots(false);
     }
-  }, [selectedDoctor, selectedDate, toast]);
+  }, [doctor, selectedDate, selectedAppointmentType, toast]);
 
   useEffect(() => {
     if (step === 2) fetchSlots();
   }, [step, fetchSlots]);
 
-  const canGoToStep2 = selectedDoctor && selectedDate;
+  // ----------------------------------------------------------
+  // Navegacion
+  // ----------------------------------------------------------
+
+  const canGoToStep2 =
+    selectedService && selectedAppointmentType && selectedDate;
 
   const handleNext = () => {
     if (step === 1 && canGoToStep2) setStep(2);
@@ -65,19 +106,48 @@ export default function Index() {
     }
   };
 
+  // ----------------------------------------------------------
+  // Resetear tipo de cita al cambiar servicio
+  // ----------------------------------------------------------
+
+  const handleSelectService = (service: ServiceCategory) => {
+    setSelectedService(service);
+    setSelectedAppointmentType(null);
+    setSelectedSlot(null);
+  };
+
+  const handleSelectAppointmentType = useCallback((type: AppointmentType) => {
+    setSelectedAppointmentType(type);
+    setSelectedSlot(null);
+  }, []);
+
+  // ----------------------------------------------------------
+  // Enviar cita
+  // ----------------------------------------------------------
+
   const handleSubmit = async (data: PatientData) => {
-    if (!selectedDoctor || !selectedDate || !selectedSlot) return;
+    if (!doctor || !selectedDate || !selectedSlot || !selectedService || !selectedAppointmentType)
+      return;
     setSubmitting(true);
     try {
+      const horaFin = minutesToHour(
+        hourToMinutes(selectedSlot) + selectedAppointmentType.duration
+      );
+      const servicioLabel = `${selectedService.name} - ${selectedAppointmentType.name}`;
+
       const result = await createAppointment({
-        cedula: data.cedula, // Numero de identificacion del paciente
+        cedula: data.cedula,
         nombre: data.nombre,
         correo: data.correo,
         telefono: data.telefono,
-        fecha: dateToDDMMYYYY(selectedDate), // DD/MM/AAAA
-        hora: selectedSlot, // HH:MM (24h)
-        doctora: selectedDoctor.name, // Nombre de la doctora seleccionada
+        fecha: dateToDDMMYYYY(selectedDate),
+        hora: selectedSlot,
+        horaFin,
+        duracion: selectedAppointmentType.duration,
+        servicio: servicioLabel,
+        doctora: doctor.name,
       });
+
       if (result.success) {
         setPatientName(data.nombre);
         setConfirmed(true);
@@ -102,9 +172,14 @@ export default function Index() {
     }
   };
 
+  // ----------------------------------------------------------
+  // Reiniciar
+  // ----------------------------------------------------------
+
   const resetAll = () => {
     setStep(1);
-    setSelectedDoctor(null);
+    setSelectedService(null);
+    setSelectedAppointmentType(null);
     setSelectedDate(undefined);
     setSelectedSlot(null);
     setSlots([]);
@@ -112,10 +187,24 @@ export default function Index() {
     setPatientName("");
   };
 
+  // ----------------------------------------------------------
+  // Labels
+  // ----------------------------------------------------------
+
   const getSlotLabel = (hour: string) => {
     const all = [...TIME_SLOTS_CONFIG.morning, ...TIME_SLOTS_CONFIG.afternoon];
     return all.find((s) => s.hour === hour)?.label ?? hour;
   };
+
+  const getTimeRangeLabel = (hour: string) => {
+    const startMin = hourToMinutes(hour);
+    const endMin = startMin + duration;
+    return `${minutesToLabel(startMin)} - ${minutesToLabel(endMin)}`;
+  };
+
+  // ----------------------------------------------------------
+  // RENDER
+  // ----------------------------------------------------------
 
   return (
     <div className="min-h-screen bg-background">
@@ -137,9 +226,15 @@ export default function Index() {
       <main className="container max-w-2xl mx-auto px-4 py-8">
         {confirmed ? (
           <Confirmation
-            doctor={selectedDoctor!}
+            serviceName={
+              selectedService && selectedAppointmentType
+                ? `${selectedService.name} - ${selectedAppointmentType.name}`
+                : ""
+            }
+            doctorName={doctor?.name ?? ""}
             date={format(selectedDate!, "d 'de' MMMM, yyyy", { locale: es })}
-            time={getSlotLabel(selectedSlot!)}
+            time={getTimeRangeLabel(selectedSlot!)}
+            duration={duration}
             patientName={patientName}
             onNewAppointment={resetAll}
           />
@@ -150,10 +245,12 @@ export default function Index() {
             {/* Step content */}
             <div className="bg-card rounded-2xl border border-border p-6 sm:p-8 shadow-sm">
               {step === 1 && (
-                <DoctorSelect
-                  selectedDoctor={selectedDoctor}
+                <ServiceSelect
+                  selectedService={selectedService}
+                  selectedAppointmentType={selectedAppointmentType}
                   selectedDate={selectedDate}
-                  onSelectDoctor={setSelectedDoctor}
+                  onSelectService={handleSelectService}
+                  onSelectAppointmentType={handleSelectAppointmentType}
                   onSelectDate={setSelectedDate}
                 />
               )}
@@ -163,6 +260,7 @@ export default function Index() {
                   selectedSlot={selectedSlot}
                   onSelectSlot={setSelectedSlot}
                   loading={loadingSlots}
+                  duration={duration}
                 />
               )}
               {step === 3 && (
