@@ -5,5 +5,8 @@ dist
 .env.local
 *.log
 .DS_Store
-backend/node_modules
-backend/credentials.json
+backend
+*.md
+.gitignore
+nixpacks.toml
+verify-build.sh

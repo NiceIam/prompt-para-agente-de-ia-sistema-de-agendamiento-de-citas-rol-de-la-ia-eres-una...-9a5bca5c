@@ -1,6 +1,6 @@
 :8080
 
-root * /app/dist
+root * /usr/share/caddy
 
 # Enable gzip compression
 encode gzip

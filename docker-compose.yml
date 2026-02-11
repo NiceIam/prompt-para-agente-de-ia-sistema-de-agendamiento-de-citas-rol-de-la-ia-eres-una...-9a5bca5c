@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - SPREADSHEET_ID=${SPREADSHEET_ID}
+      - SHEET_NAME=Citas
+      - CALENDAR_ID=primary
+    volumes:
+      # Monta credentials.json si existe localmente
+      - ./backend/credentials.json:/app/credentials.json:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://localhost:3000/api
+    ports:
+      - "8080:8080"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# Para usar este archivo:
+# 1. Crea un archivo .env en la raíz con: SPREADSHEET_ID=tu_id_aqui
+# 2. Asegúrate de tener credentials.json en la carpeta backend/
+# 3. Ejecuta: docker-compose up -d
+# 4. Accede a http://localhost:8080
