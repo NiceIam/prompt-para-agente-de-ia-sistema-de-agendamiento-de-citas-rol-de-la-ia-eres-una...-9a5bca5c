@@ -69,7 +69,7 @@ if (!auth) {
     console.warn('   2. Subir archivo credentials.json en la carpeta /app/');
     console.warn('   El servidor arrancará pero las llamadas a Google fallarán.');
     console.warn('');
-  console.warn('');
+  }
 }
 
 // Configuracion desde variables de entorno
@@ -125,18 +125,18 @@ app.get('/api/citas', async (req, res) => {
 
     const rows = response.data.values || [];
     const citas = rows.map((row, index) => ({
-      id: (index + 2).toString(),   // Numero de fila en el Sheet (fila 1 = encabezados)
-      cedula: row[0] || '',         // Col A: Cedula / numero de identificacion
-      nombre: row[1] || '',         // Col B
-      correo: row[2] || '',         // Col C
-      telefono: row[3] || '',       // Col D
-      fecha: row[4] || '',          // Col E
-      hora: row[5] || '',           // Col F
-      estado: row[6] || 'Activa',   // Col G
-      accion: row[7] || 'Agendamiento', // Col H
-      doctora: row[8] || '',        // Col I
-      createdAt: row[9] || '',      // Col J
-      updatedAt: row[10] || '',     // Col K
+      id: (index + 2).toString(),
+      cedula: row[0] || '',
+      nombre: row[1] || '',
+      correo: row[2] || '',
+      telefono: row[3] || '',
+      fecha: row[4] || '',
+      hora: row[5] || '',
+      estado: row[6] || 'Activa',
+      accion: row[7] || 'Agendamiento',
+      doctora: row[8] || '',
+      createdAt: row[9] || '',
+      updatedAt: row[10] || '',
     }));
 
     res.json({ success: true, data: citas });
@@ -160,7 +160,6 @@ app.post('/api/citas', async (req, res) => {
 
     const now = new Date().toISOString();
 
-    // 1. Escribir en Google Sheets (columnas A-K) — Col A = cedula, Col I = doctora
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEET_NAME}!A:K`,
@@ -171,7 +170,6 @@ app.post('/api/citas', async (req, res) => {
       },
     });
 
-    // 2. Crear evento en Google Calendar (si falla, la cita sigue en Sheets)
     let eventId = '';
     try {
       const startDateTime = buildDateTime(fecha, hora);
@@ -210,7 +208,6 @@ app.post('/api/citas', async (req, res) => {
 /**
  * PUT /api/citas/:id
  * Reagendar una cita (actualiza fecha/hora en Sheets)
- * :id = numero de fila en el Sheet
  */
 app.put('/api/citas/:id', async (req, res) => {
   try {
@@ -223,31 +220,29 @@ app.put('/api/citas/:id', async (req, res) => {
 
     const now = new Date().toISOString();
 
-    // Leer fila actual para conservar datos del paciente
     const current = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEET_NAME}!A${rowNumber}:K${rowNumber}`,
     });
     const row = (current.data.values && current.data.values[0]) || [];
 
-    // Actualizar fila completa (A-K)
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEET_NAME}!A${rowNumber}:K${rowNumber}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [[
-          row[0] || '',   // A: ID (conservar)
-          row[1] || '',   // B: Nombre (conservar)
-          row[2] || '',   // C: Correo (conservar)
-          row[3] || '',   // D: Telefono (conservar)
-          fecha,          // E: Nueva Fecha
-          hora,           // F: Nueva Hora
-          'Reagendada',   // G: Estado
-          'Reagendamiento', // H: Accion
-          row[8] || '',   // I: Doctora (conservar)
-          row[9] || '',   // J: FechaCreacion (conservar)
-          now,            // K: FechaActualizacion
+          row[0] || '',
+          row[1] || '',
+          row[2] || '',
+          row[3] || '',
+          fecha,
+          hora,
+          'Reagendada',
+          'Reagendamiento',
+          row[8] || '',
+          row[9] || '',
+          now,
         ]],
       },
     });
@@ -263,14 +258,12 @@ app.put('/api/citas/:id', async (req, res) => {
 /**
  * DELETE /api/citas/:id
  * Cancelar una cita (NO elimina la fila, solo cambia el estado)
- * :id = numero de fila en el Sheet
  */
 app.delete('/api/citas/:id', async (req, res) => {
   try {
     const rowNumber = parseInt(req.params.id, 10);
     const now = new Date().toISOString();
 
-    // Cambiar estado (Col G) y accion (Col H)
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEET_NAME}!G${rowNumber}:H${rowNumber}`,
@@ -278,7 +271,6 @@ app.delete('/api/citas/:id', async (req, res) => {
       requestBody: { values: [['Cancelada', 'Cancelacion']] },
     });
 
-    // Actualizar FechaActualizacion (Col K)
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEET_NAME}!K${rowNumber}`,
@@ -298,10 +290,6 @@ app.delete('/api/citas/:id', async (req, res) => {
 // ENDPOINTS - CALENDAR (independientes)
 // ================================================================
 
-/**
- * POST /api/calendar/events
- * Crear evento en Calendar (tambien se crea automaticamente desde POST /api/citas)
- */
 app.post('/api/calendar/events', async (req, res) => {
   try {
     const { nombre, correo, telefono, fecha, hora } = req.body;
@@ -325,10 +313,6 @@ app.post('/api/calendar/events', async (req, res) => {
   }
 });
 
-/**
- * PUT /api/calendar/events/:eventId
- * Actualizar evento en Calendar
- */
 app.put('/api/calendar/events/:eventId', async (req, res) => {
   try {
     const { nombre, correo, telefono, fecha, hora } = req.body;
@@ -352,10 +336,6 @@ app.put('/api/calendar/events/:eventId', async (req, res) => {
   }
 });
 
-/**
- * DELETE /api/calendar/events/:eventId
- * Eliminar evento del Calendar
- */
 app.delete('/api/calendar/events/:eventId', async (req, res) => {
   try {
     await calendar.events.delete({
@@ -386,13 +366,6 @@ app.get('/api/health', (req, res) => {
 // HELPERS
 // ================================================================
 
-/**
- * Convierte fecha DD/MM/AAAA + hora HH:MM a formato ISO con zona horaria Colombia
- * @param {string} fecha - Formato DD/MM/AAAA
- * @param {string} hora - Formato HH:MM
- * @param {number} minutosExtra - Minutos a sumar (para calcular hora fin)
- * @returns {string} Formato ISO: AAAA-MM-DDTHH:MM:00-05:00
- */
 function buildDateTime(fecha, hora, minutosExtra = 0) {
   const [dia, mes, anio] = fecha.split('/').map(Number);
   const [h, m] = hora.split(':').map(Number);
