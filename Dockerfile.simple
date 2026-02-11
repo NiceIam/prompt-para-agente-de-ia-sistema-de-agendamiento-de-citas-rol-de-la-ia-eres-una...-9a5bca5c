@@ -1,0 +1,28 @@
+# Dockerfile simplificado para diagnóstico
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copiar todo
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+
+# Build con logs
+RUN echo "=== Iniciando build ===" && \
+    npm run build && \
+    echo "=== Build completado ===" && \
+    echo "=== Contenido de dist: ===" && \
+    ls -laR dist/
+
+# Producción
+FROM caddy:2-alpine
+
+COPY --from=builder /app/dist /usr/share/caddy
+COPY Caddyfile /etc/caddy/Caddyfile
+
+RUN echo "=== Archivos en Caddy: ===" && \
+    ls -laR /usr/share/caddy/
+
+EXPOSE 8080
