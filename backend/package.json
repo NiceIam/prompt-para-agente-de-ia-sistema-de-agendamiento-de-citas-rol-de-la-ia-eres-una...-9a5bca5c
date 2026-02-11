@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "Backend API para Orthodonto - Conecta con Google Sheets y Calendar via Service Account",
   "main": "server.js",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js"
