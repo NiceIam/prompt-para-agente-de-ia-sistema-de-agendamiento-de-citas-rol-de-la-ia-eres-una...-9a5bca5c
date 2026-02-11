@@ -1,6 +1,6 @@
 import { User } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Doctor, DOCTORS } from "@/lib/types";
+import { Doctor, DOCTORS, isDateDisabled } from "@/lib/types";
 import { Calendar } from "@/components/ui/calendar";
 import { es } from "date-fns/locale";
 
@@ -17,14 +17,6 @@ export function DoctorSelect({
   onSelectDoctor,
   onSelectDate,
 }: DoctorSelectProps) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const isWeekday = (date: Date) => {
-    const day = date.getDay();
-    return day !== 0 && day !== 6;
-  };
-
   return (
     <div className="animate-fade-in space-y-8">
       <div>
@@ -73,7 +65,7 @@ export function DoctorSelect({
                 mode="single"
                 selected={selectedDate}
                 onSelect={onSelectDate}
-                disabled={(date) => date < today || !isWeekday(date)}
+                disabled={isDateDisabled}
                 locale={es}
                 className="pointer-events-auto"
               />

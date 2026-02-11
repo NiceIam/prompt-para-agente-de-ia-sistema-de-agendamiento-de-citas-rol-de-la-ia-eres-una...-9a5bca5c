@@ -15,14 +15,26 @@ import {
 import { PatientData } from "@/lib/types";
 
 const schema = z.object({
-  cedula: z.string().min(1, "La cédula es obligatoria").regex(/^\d+$/, "Solo números"),
-  nombre: z.string().min(1, "El nombre es obligatorio").min(3, "Mínimo 3 caracteres"),
-  correo: z.string().min(1, "El correo es obligatorio").email("Correo no válido"),
+  cedula: z
+    .string()
+    .min(1, "La cédula es obligatoria")
+    .regex(/^\d{6,10}$/, "La cédula debe tener entre 6 y 10 dígitos numéricos"),
+  nombre: z
+    .string()
+    .min(1, "El nombre es obligatorio")
+    .min(3, "Mínimo 3 caracteres")
+    .regex(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/, "El nombre solo puede contener letras y espacios"),
+  correo: z
+    .string()
+    .min(1, "El correo es obligatorio")
+    .regex(
+      /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+      "Formato de correo no válido (ejemplo: usuario@dominio.com)"
+    ),
   telefono: z
     .string()
     .min(1, "El teléfono es obligatorio")
-    .regex(/^[\d+\-\s()]+$/, "Formato de teléfono no válido")
-    .min(7, "Mínimo 7 dígitos"),
+    .regex(/^\d{10}$/, "El teléfono debe tener exactamente 10 dígitos numéricos"),
 });
 
 interface PatientFormProps {
@@ -48,7 +60,7 @@ export function PatientForm({ onSubmit, loading }: PatientFormProps) {
             name="cedula"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Cédula</FormLabel>
+                <FormLabel>Cédula / Número de identificación</FormLabel>
                 <FormControl>
                   <Input placeholder="Ej: 1234567890" {...field} />
                 </FormControl>
@@ -89,7 +101,7 @@ export function PatientForm({ onSubmit, loading }: PatientFormProps) {
               <FormItem>
                 <FormLabel>Número telefónico</FormLabel>
                 <FormControl>
-                  <Input placeholder="Ej: +57 300 123 4567" {...field} />
+                  <Input placeholder="Ej: 3001234567" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>

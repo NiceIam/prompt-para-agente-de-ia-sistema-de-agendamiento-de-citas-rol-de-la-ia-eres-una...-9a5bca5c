@@ -9,7 +9,7 @@ import { TimeSlotPicker } from "@/components/TimeSlotPicker";
 import { PatientForm } from "@/components/PatientForm";
 import { Confirmation } from "@/components/Confirmation";
 import { useToast } from "@/hooks/use-toast";
-import { Doctor, PatientData, TimeSlot, TIME_SLOTS_CONFIG } from "@/lib/types";
+import { Doctor, PatientData, TimeSlot, TIME_SLOTS_CONFIG, dateToDDMMYYYY } from "@/lib/types";
 import { getAvailability, createAppointment } from "@/lib/api";
 
 const STEPS = ["Doctora y Fecha", "Horario", "Datos"];
@@ -30,13 +30,16 @@ export default function Index() {
     if (!selectedDoctor || !selectedDate) return;
     setLoadingSlots(true);
     try {
-      const data = await getAvailability(
-        selectedDoctor.id,
-        format(selectedDate, "yyyy-MM-dd")
-      );
+      // Convertir la fecha a DD/MM/AAAA y pasar el nombre de la doctora
+      const fechaStr = dateToDDMMYYYY(selectedDate);
+      const data = await getAvailability(fechaStr, selectedDoctor.name);
       setSlots(data);
     } catch {
-      toast({ title: "Error", description: "No se pudo cargar la disponibilidad.", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: "No se pudo cargar la disponibilidad. Verifica que el servidor esté activo.",
+        variant: "destructive",
+      });
     } finally {
       setLoadingSlots(false);
     }
@@ -67,21 +70,33 @@ export default function Index() {
     setSubmitting(true);
     try {
       const result = await createAppointment({
-        ...data,
-        fecha: format(selectedDate, "yyyy-MM-dd"),
-        hora: selectedSlot,
-        doctora: selectedDoctor.id,
-        estado: "Agendada",
-        fechaCreacion: new Date().toISOString(),
+        cedula: data.cedula, // Numero de identificacion del paciente
+        nombre: data.nombre,
+        correo: data.correo,
+        telefono: data.telefono,
+        fecha: dateToDDMMYYYY(selectedDate), // DD/MM/AAAA
+        hora: selectedSlot, // HH:MM (24h)
+        doctora: selectedDoctor.name, // Nombre de la doctora seleccionada
       });
       if (result.success) {
         setPatientName(data.nombre);
         setConfirmed(true);
       } else {
-        toast({ title: "Error", description: result.message, variant: "destructive" });
+        toast({
+          title: "Error",
+          description: result.message,
+          variant: "destructive",
+        });
       }
-    } catch {
-      toast({ title: "Error", description: "No se pudo agendar la cita.", variant: "destructive" });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description:
+          err instanceof Error
+            ? err.message
+            : "No se pudo agendar la cita. Intente nuevamente.",
+        variant: "destructive",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -114,7 +129,7 @@ export default function Index() {
             <h1 className="text-lg font-bold font-display text-foreground leading-tight">
               Agenda tu Cita
             </h1>
-            <p className="text-xs text-muted-foreground">Sistema de citas médicas</p>
+            <p className="text-xs text-muted-foreground">Clínica Orthodonto</p>
           </div>
         </div>
       </header>

@@ -1,77 +1,151 @@
-import { AppointmentData, TimeSlot, TIME_SLOTS_CONFIG, MAX_APPOINTMENTS_PER_SLOT } from "./types";
+import {
+  AppointmentData,
+  CitaBackend,
+  TimeSlot,
+  TIME_SLOTS_CONFIG,
+  MAX_APPOINTMENTS_PER_SLOT,
+  normalizeHour,
+} from "./types";
 
-// Replace with your Google Apps Script Web App URL
-const API_URL = "";
+/**
+ * Normaliza una fecha que viene del Sheet: "12/2/2026" -> "12/02/2026"
+ * Google Sheets a veces no padea dia/mes con cero.
+ */
+function normalizeDate(fecha: string): string {
+  const parts = fecha.split("/");
+  if (parts.length !== 3) return fecha;
+  const [d, m, y] = parts;
+  return `${d.padStart(2, "0")}/${m.padStart(2, "0")}/${y}`;
+}
 
-const USE_MOCK = !API_URL;
+// ================================================================
+// CONFIGURACION
+// ================================================================
 
-// Mock data for development
-const mockAppointments: AppointmentData[] = [];
+/**
+ * Base URL de la API.
+ * En desarrollo, Vite proxy redirige /api -> http://localhost:3000
+ * En produccion, cambiar a la URL del servidor desplegado.
+ */
+const API_BASE = "/api";
 
+// ================================================================
+// FUNCIONES PUBLICAS
+// ================================================================
+
+/**
+ * Obtiene todas las citas activas desde el backend (Google Sheets).
+ */
+export async function fetchAllCitas(): Promise<CitaBackend[]> {
+  const res = await fetch(`${API_BASE}/citas`);
+  if (!res.ok) {
+    throw new Error("Error al consultar citas del servidor");
+  }
+  const json = await res.json();
+  if (!json.success) {
+    throw new Error(json.message || "Error desconocido");
+  }
+  return json.data as CitaBackend[];
+}
+
+/**
+ * Calcula la disponibilidad de horarios para una fecha y doctora dadas.
+ * Descarga TODAS las citas y filtra en el frontend.
+ *
+ * Logica:
+ * - Cada doctora puede tener MAXIMO 1 cita por horario.
+ * - Si la doctora seleccionada ya tiene cita a esa hora -> NO disponible.
+ * - Si ambas doctoras tienen cita a esa hora -> slot lleno para todos.
+ */
 export async function getAvailability(
-  doctorId: string,
-  date: string
+  date: string,
+  doctorName: string
 ): Promise<TimeSlot[]> {
-  if (USE_MOCK) {
-    return getMockAvailability(doctorId, date);
-  }
+  // date viene como DD/MM/AAAA
+  const allCitas = await fetchAllCitas();
 
-  try {
-    const res = await fetch(`${API_URL}?action=availability&doctor=${encodeURIComponent(doctorId)}&date=${encodeURIComponent(date)}`);
-    if (!res.ok) throw new Error("Error al consultar disponibilidad");
-    return await res.json();
-  } catch (error) {
-    console.error("Error fetching availability:", error);
-    throw new Error("No se pudo consultar la disponibilidad. Intente nuevamente.");
-  }
-}
+  // Filtrar solo citas activas para esa fecha (normalizar por si el Sheet no padea)
+  const normalizedDate = normalizeDate(date);
+  const citasEnFecha = allCitas.filter(
+    (c) => c.estado === "Activa" && normalizeDate(c.fecha) === normalizedDate
+  );
 
-export async function createAppointment(data: AppointmentData): Promise<{ success: boolean; message: string }> {
-  if (USE_MOCK) {
-    return createMockAppointment(data);
-  }
-
-  try {
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "create", ...data }),
-    });
-    if (!res.ok) throw new Error("Error al crear la cita");
-    return await res.json();
-  } catch (error) {
-    console.error("Error creating appointment:", error);
-    throw new Error("No se pudo agendar la cita. Intente nuevamente.");
-  }
-}
-
-function getMockAvailability(doctorId: string, date: string): TimeSlot[] {
+  // Armar la lista de slots con disponibilidad
   const allSlots = [
-    ...TIME_SLOTS_CONFIG.morning.map((s) => ({ ...s, period: "morning" as const })),
-    ...TIME_SLOTS_CONFIG.afternoon.map((s) => ({ ...s, period: "afternoon" as const })),
+    ...TIME_SLOTS_CONFIG.morning.map((s) => ({
+      ...s,
+      period: "morning" as const,
+    })),
+    ...TIME_SLOTS_CONFIG.afternoon.map((s) => ({
+      ...s,
+      period: "afternoon" as const,
+    })),
   ];
 
   return allSlots.map((slot) => {
-    const count = mockAppointments.filter(
-      (a) => a.doctora === doctorId && a.fecha === date && a.hora === slot.hour
+    // Citas de ESTA doctora en este horario
+    const citasDoctora = citasEnFecha.filter(
+      (c) => normalizeHour(c.hora) === slot.hour && c.doctora === doctorName
     ).length;
+
+    // Total de citas en este horario (ambas doctoras)
+    const citasTotal = citasEnFecha.filter(
+      (c) => normalizeHour(c.hora) === slot.hour
+    ).length;
+
+    // La doctora NO esta disponible si ya tiene 1 cita a esa hora
+    // El slot esta completamente lleno si ya hay 2 citas (ambas doctoras ocupadas)
+    const doctoraBusy = citasDoctora >= 1;
+    const slotFull = citasTotal >= MAX_APPOINTMENTS_PER_SLOT;
+    const available = !doctoraBusy && !slotFull;
+
     return {
       ...slot,
-      available: count < MAX_APPOINTMENTS_PER_SLOT,
-      spotsLeft: MAX_APPOINTMENTS_PER_SLOT - count,
+      available,
+      spotsLeft: available ? 1 : 0,
     };
   });
 }
 
-function createMockAppointment(data: AppointmentData): { success: boolean; message: string } {
-  const count = mockAppointments.filter(
-    (a) => a.doctora === data.doctora && a.fecha === data.fecha && a.hora === data.hora
-  ).length;
+/**
+ * Crea una nueva cita en el backend.
+ * El backend escribe en Google Sheets y crea evento en Google Calendar.
+ */
+export async function createAppointment(
+  data: AppointmentData
+): Promise<{ success: boolean; message: string; eventId?: string }> {
+  const res = await fetch(`${API_BASE}/citas`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      cedula: data.cedula, // Numero de identificacion del paciente
+      nombre: data.nombre,
+      correo: data.correo,
+      telefono: data.telefono,
+      fecha: data.fecha, // DD/MM/AAAA
+      hora: data.hora, // HH:MM
+      doctora: data.doctora, // Doctora seleccionada
+    }),
+  });
 
-  if (count >= MAX_APPOINTMENTS_PER_SLOT) {
-    return { success: false, message: "Este horario ya no está disponible." };
+  if (!res.ok) {
+    const errorJson = await res.json().catch(() => null);
+    throw new Error(
+      errorJson?.message || `Error del servidor (${res.status})`
+    );
   }
 
-  mockAppointments.push(data);
-  return { success: true, message: "Cita agendada exitosamente." };
+  return await res.json();
+}
+
+/**
+ * Health check del backend.
+ */
+export async function checkHealth(): Promise<{
+  status: string;
+  google: string;
+  spreadsheetId: string;
+}> {
+  const res = await fetch(`${API_BASE}/health`);
+  return await res.json();
 }

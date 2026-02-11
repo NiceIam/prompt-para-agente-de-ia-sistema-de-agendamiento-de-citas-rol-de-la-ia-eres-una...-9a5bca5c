@@ -1,0 +1,19 @@
+{
+  "name": "orthodonto-backend",
+  "version": "1.0.0",
+  "description": "Backend API para Orthodonto - Conecta con Google Sheets y Calendar via Service Account",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": ["google-sheets", "google-calendar", "express", "service-account", "citas"],
+  "author": "Orthodonto Team",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "googleapis": "^144.0.0"
+  }
+}
