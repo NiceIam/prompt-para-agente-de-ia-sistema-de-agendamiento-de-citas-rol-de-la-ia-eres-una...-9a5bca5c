@@ -1,0 +1,42 @@
+# Dockerfile con puerto 80 para compatibilidad con algunos hosts
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci --verbose
+
+COPY . .
+
+RUN ls -la && \
+    test -f vite.config.ts && \
+    test -f index.html && \
+    echo "✅ Archivos de configuración encontrados"
+
+RUN npm run build && \
+    ls -la dist/ && \
+    test -f dist/index.html && \
+    echo "✅ Build completado exitosamente"
+
+FROM caddy:2-alpine
+
+COPY --from=builder /app/dist /usr/share/caddy
+
+RUN ls -la /usr/share/caddy && \
+    test -f /usr/share/caddy/index.html && \
+    echo "✅ Archivos copiados a Caddy correctamente"
+
+# Caddyfile inline para puerto 80
+RUN echo ':80' > /etc/caddy/Caddyfile && \
+    echo 'root * /usr/share/caddy' >> /etc/caddy/Caddyfile && \
+    echo 'encode gzip' >> /etc/caddy/Caddyfile && \
+    echo 'file_server' >> /etc/caddy/Caddyfile && \
+    echo 'try_files {path} /index.html' >> /etc/caddy/Caddyfile
+
+RUN cat /etc/caddy/Caddyfile && \
+    caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
+EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --quiet --tries=1 --spider http://localhost:80 || exit 1
