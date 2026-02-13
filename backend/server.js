@@ -261,6 +261,50 @@ app.post('/api/citas', async (req, res) => {
       console.error('Calendar error (cita SI guardada en Sheets):', calErr.message);
     }
 
+    // ================================================================
+    // NOTIFICACION A WEBHOOK (N8N)
+    // ================================================================
+    try {
+      const webhookUrl = 'https://n8n-n8n.dtbfmw.easypanel.host/webhook/c8b807da-3296-402f-b7b2-d8d4546075f6';
+      const webhookPayload = {
+        cedula,
+        nombre,
+        correo,
+        telefono,
+        fecha,
+        hora,
+        horaFin,
+        duracion: dur,
+        servicio,
+        doctora,
+        eventId,
+        createdAt: now,
+      };
+
+      // No esperamos a que termine para no bloquear la respuesta al cliente,
+      // pero si queremos asegurar que se envie, podemos usar await. 
+      // Dado el requisito "envies un json", asumire que es mejor esperar para confirmar o al menos disparar.
+      // Usaremos fetch (nativo en Node 18+)
+      fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(webhookPayload),
+      })
+        .then(response => {
+          if (response.ok) {
+            console.log('✅ Webhook enviado exitosamente');
+          } else {
+            console.error(`❌ Error al enviar webhook: ${response.status} ${response.statusText}`);
+          }
+        })
+        .catch(err => console.error('❌ Error de red al enviar webhook:', err.message));
+
+    } catch (webhookErr) {
+      console.error('❌ Error inesperado en webhook:', webhookErr.message);
+    }
+
     console.log(`Cita agendada: ${nombre} - ${servicio || 'Sin servicio'} - ${fecha} ${hora}-${horaFin} (${dur}min)`);
     res.json({ success: true, message: 'Cita agendada exitosamente', eventId });
   } catch (error) {
