@@ -8,6 +8,7 @@ import { ServiceSelect } from "@/components/ServiceSelect";
 import { TimeSlotPicker } from "@/components/TimeSlotPicker";
 import { PatientForm } from "@/components/PatientForm";
 import { Confirmation } from "@/components/Confirmation";
+import { PatientIdentification } from "@/components/PatientIdentification";
 import { useToast } from "@/hooks/use-toast";
 import {
   ServiceCategory,
@@ -23,25 +24,28 @@ import {
 } from "@/lib/types";
 import { getAvailability, createAppointment } from "@/lib/api";
 
-const STEPS = ["Servicio y Fecha", "Horario", "Datos"];
+const STEPS = ["Identificación", "Servicio y Fecha", "Horario", "Datos"];
 
 export default function Index() {
   const { toast } = useToast();
   const [step, setStep] = useState(1);
 
-  // Step 1: servicio, tipo de cita, fecha
+  // Step 1: Identificación
+  const [cedula, setCedula] = useState<string>("");
+
+  // Step 2 (was 1): servicio, tipo de cita, fecha
   const [selectedService, setSelectedService] =
     useState<ServiceCategory | null>(null);
   const [selectedAppointmentType, setSelectedAppointmentType] =
     useState<AppointmentType | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
 
-  // Step 2: horario
+  // Step 3 (was 2): horario
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
-  // Step 3: datos
+  // Step 4 (was 3): datos
   const [submitting, setSubmitting] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [patientName, setPatientName] = useState("");
@@ -55,7 +59,7 @@ export default function Index() {
   const duration = selectedAppointmentType?.duration ?? 30;
 
   // ----------------------------------------------------------
-  // Cargar disponibilidad cuando se pasa al paso 2
+  // Cargar disponibilidad cuando se pasa al paso 3 (horarios)
   // ----------------------------------------------------------
 
   const fetchSlots = useCallback(async () => {
@@ -82,27 +86,36 @@ export default function Index() {
   }, [doctor, selectedDate, selectedAppointmentType, toast]);
 
   useEffect(() => {
-    if (step === 2) fetchSlots();
+    if (step === 3) fetchSlots();
   }, [step, fetchSlots]);
 
   // ----------------------------------------------------------
   // Navegacion
   // ----------------------------------------------------------
 
-  const canGoToStep2 =
+  // Paso 1 -> 2: Verificación de cédula
+  const handleIdentificationVerified = (verifiedCedula: string) => {
+    setCedula(verifiedCedula);
+    setStep(2);
+  };
+
+  const canGoToStep3 =
     selectedService && selectedAppointmentType && selectedDate;
 
   const handleNext = () => {
-    if (step === 1 && canGoToStep2) setStep(2);
-    else if (step === 2 && selectedSlot) setStep(3);
+    if (step === 2 && canGoToStep3) setStep(3);
+    else if (step === 3 && selectedSlot) setStep(4);
   };
 
   const handleBack = () => {
     if (step === 2) {
-      setSelectedSlot(null);
+      setCedula("");
       setStep(1);
     } else if (step === 3) {
+      setSelectedSlot(null);
       setStep(2);
+    } else if (step === 4) {
+      setStep(3);
     }
   };
 
@@ -178,6 +191,7 @@ export default function Index() {
 
   const resetAll = () => {
     setStep(1);
+    setCedula("");
     setSelectedService(null);
     setSelectedAppointmentType(null);
     setSelectedDate(undefined);
@@ -190,11 +204,6 @@ export default function Index() {
   // ----------------------------------------------------------
   // Labels
   // ----------------------------------------------------------
-
-  const getSlotLabel = (hour: string) => {
-    const all = [...TIME_SLOTS_CONFIG.morning, ...TIME_SLOTS_CONFIG.afternoon];
-    return all.find((s) => s.hour === hour)?.label ?? hour;
-  };
 
   const getTimeRangeLabel = (hour: string) => {
     const startMin = hourToMinutes(hour);
@@ -245,6 +254,9 @@ export default function Index() {
             {/* Step content */}
             <div className="bg-card rounded-2xl border border-border p-6 sm:p-8 shadow-sm">
               {step === 1 && (
+                <PatientIdentification onVerified={handleIdentificationVerified} />
+              )}
+              {step === 2 && (
                 <ServiceSelect
                   selectedService={selectedService}
                   selectedAppointmentType={selectedAppointmentType}
@@ -254,7 +266,7 @@ export default function Index() {
                   onSelectDate={setSelectedDate}
                 />
               )}
-              {step === 2 && (
+              {step === 3 && (
                 <TimeSlotPicker
                   slots={slots}
                   selectedSlot={selectedSlot}
@@ -263,26 +275,23 @@ export default function Index() {
                   duration={duration}
                 />
               )}
-              {step === 3 && (
-                <PatientForm onSubmit={handleSubmit} loading={submitting} />
+              {step === 4 && (
+                <PatientForm onSubmit={handleSubmit} loading={submitting} initialCedula={cedula} />
               )}
 
               {/* Navigation */}
-              {!confirmed && (
+              {!confirmed && step > 1 && (
                 <div className="flex justify-between mt-8 pt-6 border-t border-border">
-                  {step > 1 ? (
-                    <Button variant="ghost" onClick={handleBack}>
-                      <ArrowLeft className="w-4 h-4 mr-1" /> Atrás
-                    </Button>
-                  ) : (
-                    <div />
-                  )}
-                  {step < 3 && (
+                  <Button variant="ghost" onClick={handleBack}>
+                    <ArrowLeft className="w-4 h-4 mr-1" /> Atrás
+                  </Button>
+
+                  {step < 4 && (
                     <Button
                       onClick={handleNext}
                       disabled={
-                        (step === 1 && !canGoToStep2) ||
-                        (step === 2 && !selectedSlot)
+                        (step === 2 && !canGoToStep3) ||
+                        (step === 3 && !selectedSlot)
                       }
                     >
                       Siguiente

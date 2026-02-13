@@ -169,3 +169,19 @@ export async function checkHealth(): Promise<{
   const res = await fetch(`${API_BASE}/health`);
   return await res.json();
 }
+
+/**
+ * Verifica si un paciente tiene una cita activa.
+ */
+export async function checkActiveAppointment(cedula: string): Promise<{
+  hasActiveAppointment: boolean;
+  appointment?: any;
+  message: string;
+}> {
+  const res = await fetch(`${API_BASE}/citas/active/${cedula}`);
+  if (!res.ok) {
+    throw new Error("Error al consultar estado del paciente");
+  }
+  const json = await res.json();
+  return json;
+}

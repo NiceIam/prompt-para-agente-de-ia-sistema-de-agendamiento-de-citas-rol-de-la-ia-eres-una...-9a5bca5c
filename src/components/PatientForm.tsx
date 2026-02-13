@@ -40,12 +40,13 @@ const schema = z.object({
 interface PatientFormProps {
   onSubmit: (data: PatientData) => void;
   loading: boolean;
+  initialCedula?: string;
 }
 
-export function PatientForm({ onSubmit, loading }: PatientFormProps) {
+export function PatientForm({ onSubmit, loading, initialCedula }: PatientFormProps) {
   const form = useForm<PatientData>({
     resolver: zodResolver(schema),
-    defaultValues: { cedula: "", nombre: "", correo: "", telefono: "" },
+    defaultValues: { cedula: initialCedula || "", nombre: "", correo: "", telefono: "" },
   });
 
   return (
