@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { CheckCircle2, CalendarDays, Clock, User, Stethoscope } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -20,8 +21,11 @@ export function Confirmation({
   patientName,
   onNewAppointment,
 }: ConfirmationProps) {
+  const navigate = useNavigate();
+
   return (
     <div className="animate-fade-in text-center space-y-6 py-8">
+      {/* ... existing structure ... */}
       <div className="mx-auto w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center">
         <CheckCircle2 className="w-10 h-10 text-accent" />
       </div>
@@ -68,8 +72,8 @@ export function Confirmation({
         </div>
       </div>
 
-      <Button onClick={onNewAppointment} variant="outline" className="mt-4">
-        Agendar otra cita
+      <Button onClick={() => navigate("/")} variant="outline" className="mt-4">
+        Volver al inicio
       </Button>
     </div>
   );
