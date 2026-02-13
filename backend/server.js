@@ -149,6 +149,66 @@ function calcHoraFin(hora, duracion) {
 // ================================================================
 
 /**
+ * GET /api/citas/active/:cedula
+ * Verificar si un paciente tiene una cita activa o reagendada pendiente.
+ * Retorna { hasActiveAppointment: true/false, appointment: { ... } }
+ */
+app.get('/api/citas/active/:cedula', async (req, res) => {
+  try {
+    const { cedula } = req.params;
+    if (!cedula) {
+      return res.status(400).json({ success: false, message: 'Se requiere el numero de cedula' });
+    }
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAME}!A2:N`,
+    });
+
+    const rows = response.data.values || [];
+
+    // Buscar cita activa
+    // Col A (index 0) = Cedula
+    // Col G (index 6) = Estado
+    const activeAppointmentRow = rows.find(row => {
+      const rowCedula = (row[0] || '').toString().trim();
+      const estado = (row[6] || '').toString().trim();
+
+      return rowCedula === cedula && (estado === 'Activa' || estado === 'Reagendada');
+    });
+
+    if (activeAppointmentRow) {
+      const cita = {
+        cedula: activeAppointmentRow[0],
+        nombre: activeAppointmentRow[1],
+        fecha: activeAppointmentRow[4],
+        hora: activeAppointmentRow[5],
+        estado: activeAppointmentRow[6],
+        servicio: activeAppointmentRow[8]
+      };
+
+      return res.json({
+        success: true,
+        hasActiveAppointment: true,
+        message: 'El usuario ya tiene una cita activa.',
+        appointment: cita
+      });
+    }
+
+    return res.json({
+      success: true,
+      hasActiveAppointment: false,
+      message: 'El usuario puede agendar una nueva cita.'
+    });
+
+  } catch (error) {
+    console.error('Error al verificar cita activa:', error.message);
+    res.status(500).json({ success: false, message: 'Error al verificar citas: ' + error.message });
+  }
+});
+
+
+/**
  * GET /api/citas
  * Obtener todas las citas del Google Sheet
  */
