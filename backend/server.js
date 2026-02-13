@@ -325,7 +325,7 @@ app.post('/api/citas', async (req, res) => {
     // NOTIFICACION A WEBHOOK (N8N)
     // ================================================================
     try {
-      const webhookUrl = 'https://n8n-n8n.dtbfmw.easypanel.host/webhook-test/c8b807da-3296-402f-b7b2-d8d4546075f6';
+      const webhookUrl = 'https://n8n-n8n.dtbfmw.easypanel.host/webhook/c8b807da-3296-402f-b7b2-d8d4546075f6';
       const webhookPayload = {
         cedula,
         nombre,
