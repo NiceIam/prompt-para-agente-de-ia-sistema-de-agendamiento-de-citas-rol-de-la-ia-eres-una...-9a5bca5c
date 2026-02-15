@@ -36,10 +36,14 @@ export function PatientIdentification({ onVerified }: PatientIdentificationProps
                 onVerified(cedula);
             }
         } catch (err) {
+            const isNetworkError =
+                err instanceof TypeError && (err.message === "Failed to fetch" || err.message?.includes("fetch"));
             setError(
-                err instanceof Error
-                    ? err.message
-                    : "Error al verificar el documento. Intenta nuevamente."
+                isNetworkError
+                    ? "No se pudo conectar con el servidor. Asegúrate de que el backend esté en ejecución (puerto 3000)."
+                    : err instanceof Error
+                        ? err.message
+                        : "Error al verificar el documento. Intenta nuevamente."
             );
         } finally {
             setLoading(false);

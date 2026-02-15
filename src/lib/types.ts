@@ -198,13 +198,12 @@ export const TIME_SLOTS_CONFIG = {
     { hour: "16:00", label: "4:00 PM" },
     { hour: "16:30", label: "4:30 PM" },
     { hour: "17:00", label: "5:00 PM" },
-    { hour: "17:30", label: "5:30 PM" },
   ],
 };
 
 /**
- * Limites de los periodos (en minutos desde medianoche).
- * Se usa para validar que una cita no se salga del horario laboral.
+ * Límites de los periodos (en minutos desde medianoche).
+ * Solo Lunes a Viernes. Última cita de la tarde a las 17:00 (5:00 PM).
  *   Mañana: 8:00 (480) a 12:00 (720)
  *   Tarde:  14:00 (840) a 18:00 (1080)
  */
@@ -268,37 +267,6 @@ export const HOLIDAYS_2026: string[] = [
 ];
 
 // ================================================================
-// SABADOS NO LABORABLES 2026
-// (la clinica trabaja sabados alternos; estos son los que NO trabaja)
-// ================================================================
-
-export const NON_WORKING_SATURDAYS_2026: string[] = [
-  "14/02/2026",
-  "28/02/2026",
-  "14/03/2026",
-  "28/03/2026",
-  "11/04/2026",
-  "25/04/2026",
-  "09/05/2026",
-  "23/05/2026",
-  "06/06/2026",
-  "20/06/2026",
-  "04/07/2026",
-  "18/07/2026",
-  "01/08/2026",
-  "15/08/2026",
-  "29/08/2026",
-  "12/09/2026",
-  "26/09/2026",
-  "10/10/2026",
-  "24/10/2026",
-  "07/11/2026",
-  "21/11/2026",
-  "05/12/2026",
-  "19/12/2026",
-];
-
-// ================================================================
 // UTILIDADES DE FECHA
 // ================================================================
 
@@ -318,9 +286,8 @@ export function normalizeHour(hora: string): string {
 
 /**
  * Devuelve true si la fecha NO se puede agendar:
- * - Es domingo
+ * - Es sábado o domingo (solo se atiende Lunes a Viernes)
  * - Es festivo
- * - Es sabado no laborable
  * - Es fecha pasada
  */
 export function isDateDisabled(date: Date): boolean {
@@ -329,18 +296,47 @@ export function isDateDisabled(date: Date): boolean {
   // Domingo
   if (day === 0) return true;
 
+  // Sábado (la clínica solo atiende Lunes a Viernes)
+  if (day === 6) return true;
+
   const ddmmyyyy = dateToDDMMYYYY(date);
 
   // Festivo
   if (HOLIDAYS_2026.includes(ddmmyyyy)) return true;
 
-  // Sabado no laborable
-  if (day === 6 && NON_WORKING_SATURDAYS_2026.includes(ddmmyyyy)) return true;
-
   // Fecha pasada
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   if (date < today) return true;
+
+  return false;
+}
+
+// ================================================================
+// EXCEPCIONES POR DOCTORA (fechas sin atención)
+// ================================================================
+
+/** Dra. Sandra Simancas no atiende del 19 al 25 de febrero de 2026 */
+const DR_SANDRA_UNAVAILABLE_START = new Date(2026, 1, 19);
+const DR_SANDRA_UNAVAILABLE_END = new Date(2026, 1, 25);
+
+/**
+ * Devuelve true si la fecha NO se puede agendar para la doctora indicada.
+ * Usa las reglas generales (isDateDisabled) y además bloquea excepciones por doctora.
+ */
+export function isDateDisabledForDoctor(
+  date: Date,
+  doctorId: string | undefined
+): boolean {
+  if (isDateDisabled(date)) return true;
+
+  // Excepción: Dra. Sandra no atiende del 19 al 25 de febrero 2026
+  if (doctorId === "dra-sandra") {
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const start = new Date(DR_SANDRA_UNAVAILABLE_START.getFullYear(), DR_SANDRA_UNAVAILABLE_START.getMonth(), DR_SANDRA_UNAVAILABLE_START.getDate());
+    const end = new Date(DR_SANDRA_UNAVAILABLE_END.getFullYear(), DR_SANDRA_UNAVAILABLE_END.getMonth(), DR_SANDRA_UNAVAILABLE_END.getDate());
+    if (d >= start && d <= end) return true;
+  }
 
   return false;
 }

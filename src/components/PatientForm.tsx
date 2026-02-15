@@ -18,7 +18,9 @@ const schema = z.object({
   cedula: z
     .string()
     .min(1, "La cédula es obligatoria")
-    .regex(/^\d{6,10}$/, "La cédula debe tener entre 6 y 10 dígitos numéricos"),
+    .transform((val) => val.replace(/\s|[.-]/g, ""))
+    .refine((val) => /^\d+$/.test(val), "Solo se permiten números (sin espacios, puntos ni guiones)")
+    .refine((val) => val.length >= 5 && val.length <= 12, "La cédula debe tener entre 5 y 12 dígitos"),
   nombre: z
     .string()
     .min(1, "El nombre es obligatorio")

@@ -185,12 +185,9 @@ export default function Landing() {
                   <span className="text-muted-foreground">Lunes a Viernes</span>
                   <span className="text-foreground font-medium">8:00 AM – 6:00 PM</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Sábados</span>
-                  <span className="text-foreground font-medium">8:00 AM – 12:00 PM</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Domingos</span>
+                <p className="text-xs text-muted-foreground mt-1">Última cita de la tarde a las 5:00 PM</p>
+                <div className="flex justify-between pt-2">
+                  <span className="text-muted-foreground">Sábados y Domingos</span>
                   <span className="text-foreground font-medium">Cerrado</span>
                 </div>
               </div>
@@ -256,14 +253,14 @@ export default function Landing() {
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
                 <Phone className="w-5 h-5 text-primary" />
               </div>
-              <p className="text-sm font-medium text-foreground">+58 212-555-0100</p>
+              <p className="text-sm font-medium text-foreground">+57 313 2596214</p>
               <p className="text-xs text-muted-foreground">Llámanos</p>
             </div>
             <div className="flex flex-col items-center gap-2">
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
                 <MapPin className="w-5 h-5 text-primary" />
               </div>
-              <p className="text-sm font-medium text-foreground">Av. Principal, Centro Médico</p>
+              <p className="text-sm font-medium text-foreground">Calle 23 #16-95 Barrio Cordoba, Arauca, Arauca</p>
               <p className="text-xs text-muted-foreground">Ubícanos</p>
             </div>
             <div className="flex flex-col items-center gap-2">
