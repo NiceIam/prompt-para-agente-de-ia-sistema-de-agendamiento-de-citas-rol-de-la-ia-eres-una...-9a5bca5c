@@ -18,7 +18,7 @@ import {
   AppointmentType,
   SERVICES,
   getDoctorForService,
-  isDateDisabled,
+  isDateDisabledForDoctor,
 } from "@/lib/types";
 import { Calendar } from "@/components/ui/calendar";
 import { es } from "date-fns/locale";
@@ -201,14 +201,14 @@ export function ServiceSelect({
           </h2>
           <div className="flex justify-center">
             <div className="bg-card rounded-xl border border-border p-2 shadow-sm">
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={onSelectDate}
-                disabled={isDateDisabled}
-                locale={es}
-                className="pointer-events-auto"
-              />
+<Calendar
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={onSelectDate}
+                        disabled={(date) => isDateDisabledForDoctor(date, doctor?.id)}
+                        locale={es}
+                        className="pointer-events-auto"
+                      />
             </div>
           </div>
         </div>

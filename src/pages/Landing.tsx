@@ -185,12 +185,9 @@ export default function Landing() {
                   <span className="text-muted-foreground">Lunes a Viernes</span>
                   <span className="text-foreground font-medium">8:00 AM – 6:00 PM</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Sábados</span>
-                  <span className="text-foreground font-medium">8:00 AM – 12:00 PM</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Domingos</span>
+                <p className="text-xs text-muted-foreground mt-1">Última cita de la tarde a las 5:00 PM</p>
+                <div className="flex justify-between pt-2">
+                  <span className="text-muted-foreground">Sábados y Domingos</span>
                   <span className="text-foreground font-medium">Cerrado</span>
                 </div>
               </div>
