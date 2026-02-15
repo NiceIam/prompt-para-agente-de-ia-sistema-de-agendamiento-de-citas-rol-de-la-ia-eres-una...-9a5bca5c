@@ -253,14 +253,14 @@ export default function Landing() {
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
                 <Phone className="w-5 h-5 text-primary" />
               </div>
-              <p className="text-sm font-medium text-foreground">+58 212-555-0100</p>
+              <p className="text-sm font-medium text-foreground">+57 313 2596214</p>
               <p className="text-xs text-muted-foreground">Llámanos</p>
             </div>
             <div className="flex flex-col items-center gap-2">
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
                 <MapPin className="w-5 h-5 text-primary" />
               </div>
-              <p className="text-sm font-medium text-foreground">Av. Principal, Centro Médico</p>
+              <p className="text-sm font-medium text-foreground">Calle 23 #16-95 Barrio Cordoba, Arauca, Arauca</p>
               <p className="text-xs text-muted-foreground">Ubícanos</p>
             </div>
             <div className="flex flex-col items-center gap-2">
