@@ -26,13 +26,6 @@ const schema = z.object({
     .min(1, "El nombre es obligatorio")
     .min(3, "Mínimo 3 caracteres")
     .regex(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/, "El nombre solo puede contener letras y espacios"),
-  correo: z
-    .string()
-    .min(1, "El correo es obligatorio")
-    .regex(
-      /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-      "Formato de correo no válido (ejemplo: usuario@dominio.com)"
-    ),
   telefono: z
     .string()
     .min(1, "El teléfono es obligatorio")
@@ -48,8 +41,13 @@ interface PatientFormProps {
 export function PatientForm({ onSubmit, loading, initialCedula }: PatientFormProps) {
   const form = useForm<PatientData>({
     resolver: zodResolver(schema),
-    defaultValues: { cedula: initialCedula || "", nombre: "", correo: "", telefono: "" },
+    defaultValues: { cedula: initialCedula || "", nombre: "", correo: "araucaorthodonto@gmail.com", telefono: "" },
   });
+
+  const handleSubmit = (data: PatientData) => {
+    // Siempre usar el correo por defecto
+    onSubmit({ ...data, correo: "araucaorthodonto@gmail.com" });
+  };
 
   return (
     <div className="animate-fade-in">
@@ -57,7 +55,7 @@ export function PatientForm({ onSubmit, loading, initialCedula }: PatientFormPro
         Datos del paciente
       </h2>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-5">
           <FormField
             control={form.control}
             name="cedula"
@@ -79,19 +77,6 @@ export function PatientForm({ onSubmit, loading, initialCedula }: PatientFormPro
                 <FormLabel>Nombre completo</FormLabel>
                 <FormControl>
                   <Input placeholder="Nombre y apellidos" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="correo"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Correo electrónico</FormLabel>
-                <FormControl>
-                  <Input type="email" placeholder="correo@ejemplo.com" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
