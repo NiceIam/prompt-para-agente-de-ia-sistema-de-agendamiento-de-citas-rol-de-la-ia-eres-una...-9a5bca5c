@@ -9,6 +9,8 @@ interface ConfirmationProps {
   time: string; // rango "8:00 AM - 9:00 AM"
   duration: number;
   patientName: string;
+  appointmentTypeId?: string; // ID del tipo de cita
+  serviceId?: string; // ID del servicio
   onNewAppointment: () => void;
 }
 
@@ -19,9 +21,50 @@ export function Confirmation({
   time,
   duration,
   patientName,
+  appointmentTypeId,
+  serviceId,
   onNewAppointment,
 }: ConfirmationProps) {
   const navigate = useNavigate();
+
+  // Determinar si debe mostrar el mensaje de radiografía
+  const shouldShowXrayMessage = () => {
+    if (!serviceId) return false;
+
+    // Servicios sin tipo de cita que siempre muestran el disclaimer
+    const alwaysShowServices = ["blanqueamiento", "profilaxis"];
+    if (alwaysShowServices.includes(serviceId)) {
+      return true;
+    }
+
+    // Para otros servicios, verificar que tengan appointmentTypeId
+    if (!appointmentTypeId) return false;
+
+    // Servicios que requieren radiografía solo en valoraciones
+    const valoracionServices = [
+      { serviceId: "ortodoncia", appointmentTypeId: "valoracion-ortodoncia" },
+      { serviceId: "ortopedia-maxilar", appointmentTypeId: "valoracion-ortopedia" },
+      { serviceId: "odontologia-general", appointmentTypeId: "valoracion-general" },
+      { serviceId: "odontologia-estetica", appointmentTypeId: "valoracion-estetica" },
+      { serviceId: "diseno-sonrisa", appointmentTypeId: "valoracion-diseno" },
+      { serviceId: "rehabilitacion-oral", appointmentTypeId: "valoracion-rehabilitacion" },
+      { serviceId: "periodoncia", appointmentTypeId: "valoracion-periodoncia" },
+    ];
+
+    // Verificar si es una valoración
+    const isValoracion = valoracionServices.some(
+      (item) => item.serviceId === serviceId && item.appointmentTypeId === appointmentTypeId
+    );
+
+    return isValoracion;
+  };
+
+  // Determinar si debe mostrar el disclaimer especial (para blanqueamiento y profilaxis)
+  const shouldShowDisclaimer = () => {
+    return serviceId === "blanqueamiento" || serviceId === "profilaxis";
+  };
+
+  const showXrayMessage = shouldShowXrayMessage();
 
   return (
     <div className="animate-fade-in text-center space-y-6 py-8">
@@ -78,20 +121,32 @@ export function Confirmation({
         </div>
       </div>
 
-      {/* Mensaje importante sobre radiografía */}
-      <div className="bg-amber-50 dark:bg-amber-950/20 border-2 border-amber-200 dark:border-amber-800 rounded-xl p-4 max-w-sm mx-auto">
-        <div className="flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-500 flex-shrink-0 mt-0.5" />
-          <div className="text-left">
-            <p className="font-semibold text-amber-900 dark:text-amber-100 text-sm mb-1">
-              Requisito importante
-            </p>
-            <p className="text-amber-800 dark:text-amber-200 text-sm">
-              Para su cita, es necesario que traiga una <strong>radiografía panorámica reciente</strong>.
-            </p>
+      {/* Mensaje importante sobre radiografía (solo para valoraciones y servicios específicos) */}
+      {showXrayMessage && (
+        <div className="bg-amber-50 dark:bg-amber-950/20 border-2 border-amber-200 dark:border-amber-800 rounded-xl p-4 max-w-sm mx-auto">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-500 flex-shrink-0 mt-0.5" />
+            <div className="text-left">
+              <p className="font-semibold text-amber-900 dark:text-amber-100 text-sm mb-1">
+                Requisito importante
+              </p>
+              <p className="text-amber-800 dark:text-amber-200 text-sm">
+                {shouldShowDisclaimer() ? (
+                  <>
+                    Si esta es tu primera cita o es una valoración, es necesario que traigas una{" "}
+                    <strong>radiografía panorámica reciente</strong>.
+                  </>
+                ) : (
+                  <>
+                    Para su cita, es necesario que traiga una{" "}
+                    <strong>radiografía panorámica reciente</strong>.
+                  </>
+                )}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <Button onClick={() => navigate("/")} variant="outline" className="mt-4">
         Volver al inicio

@@ -245,6 +245,8 @@ export default function Index() {
             time={getTimeRangeLabel(selectedSlot!)}
             duration={duration}
             patientName={patientName}
+            appointmentTypeId={selectedAppointmentType?.id}
+            serviceId={selectedService?.id}
             onNewAppointment={resetAll}
           />
         ) : (
