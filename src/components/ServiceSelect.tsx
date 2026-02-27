@@ -64,9 +64,21 @@ export function ServiceSelect({
   onSelectAppointmentType,
   onSelectDate,
 }: ServiceSelectProps) {
-  // Auto-seleccionar tipo si el servicio solo tiene uno
+  // Servicios que siempre deben mostrar la selección de tipo de cita
+  const alwaysShowAppointmentTypes = [
+    "diseno-sonrisa",
+    "odontologia-estetica",
+    "rehabilitacion-oral",
+    "periodoncia",
+  ];
+
+  // Auto-seleccionar tipo si el servicio solo tiene uno (excepto los servicios especiales)
   useEffect(() => {
-    if (selectedService && selectedService.appointmentTypes.length === 1) {
+    if (
+      selectedService &&
+      selectedService.appointmentTypes.length === 1 &&
+      !alwaysShowAppointmentTypes.includes(selectedService.id)
+    ) {
       onSelectAppointmentType(selectedService.appointmentTypes[0]);
     }
   }, [selectedService, onSelectAppointmentType]);
@@ -122,8 +134,10 @@ export function ServiceSelect({
         </div>
       </div>
 
-      {/* --- Tipo de cita (si el servicio tiene mas de 1 opcion) --- */}
-      {selectedService && selectedService.appointmentTypes.length > 1 && (
+      {/* --- Tipo de cita (si el servicio tiene mas de 1 opcion o es un servicio especial) --- */}
+      {selectedService &&
+        (selectedService.appointmentTypes.length > 1 ||
+          alwaysShowAppointmentTypes.includes(selectedService.id)) && (
         <div className="animate-fade-in">
           <h2 className="text-lg font-semibold font-display text-foreground mb-4">
             Tipo de cita
@@ -164,7 +178,13 @@ export function ServiceSelect({
                         : "bg-muted text-muted-foreground"
                     )}
                   >
-                    {type.duration === 60 ? "1 hora" : "30 min"}
+                    {type.duration === 120
+                      ? "2 horas"
+                      : type.duration === 90
+                      ? "90 Minutos"
+                      : type.duration === 60
+                      ? "1 hora"
+                      : "30 min"}
                   </span>
                 </button>
               );

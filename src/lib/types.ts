@@ -94,6 +94,7 @@ export const SERVICES: ServiceCategory[] = [
       { id: "valoracion-ortodoncia", name: "Valoración de Ortodoncia", duration: 30 },
       { id: "control-ortodoncia", name: "Control de Ortodoncia", duration: 30 },
       { id: "montaje-brackets", name: "Montaje de Brackets", duration: 60 },
+      { id: "procedimiento-dental", name: "Procedimiento dental", duration: 90 },
     ],
   },
   {
@@ -103,6 +104,7 @@ export const SERVICES: ServiceCategory[] = [
     appointmentTypes: [
       { id: "valoracion-ortopedia", name: "Valoración", duration: 30 },
       { id: "procedimiento-ortopedia", name: "Procedimiento de Ortopedia", duration: 60 },
+      { id: "control-ortopedia", name: "Control de ortopedia", duration: 30 },
     ],
   },
   {
@@ -112,6 +114,7 @@ export const SERVICES: ServiceCategory[] = [
     appointmentTypes: [
       { id: "valoracion-general", name: "Valoración General", duration: 30 },
       { id: "procedimiento-general", name: "Procedimiento General", duration: 60 },
+      { id: "mantenimiento-diseno", name: "Mantenimiento de diseño", duration: 120 },
     ],
   },
   {
@@ -120,7 +123,6 @@ export const SERVICES: ServiceCategory[] = [
     doctorId: "dra-zaira",
     appointmentTypes: [
       { id: "valoracion-estetica", name: "Valoración", duration: 30 },
-      { id: "procedimiento-estetico", name: "Procedimiento Estético", duration: 60 },
     ],
   },
   {
@@ -137,7 +139,6 @@ export const SERVICES: ServiceCategory[] = [
     doctorId: "dra-zaira",
     appointmentTypes: [
       { id: "valoracion-diseno", name: "Valoración", duration: 30 },
-      { id: "diseno-sonrisa-proc", name: "Diseño de Sonrisa", duration: 60 },
     ],
   },
   {
@@ -146,7 +147,6 @@ export const SERVICES: ServiceCategory[] = [
     doctorId: "dra-zaira",
     appointmentTypes: [
       { id: "valoracion-rehabilitacion", name: "Valoración", duration: 30 },
-      { id: "procedimiento-rehabilitacion", name: "Procedimiento de Rehabilitación", duration: 60 },
     ],
   },
   {
@@ -155,7 +155,6 @@ export const SERVICES: ServiceCategory[] = [
     doctorId: "dra-zaira",
     appointmentTypes: [
       { id: "valoracion-periodoncia", name: "Valoración", duration: 30 },
-      { id: "procedimiento-periodoncia", name: "Procedimiento de Periodoncia", duration: 60 },
     ],
   },
   {
