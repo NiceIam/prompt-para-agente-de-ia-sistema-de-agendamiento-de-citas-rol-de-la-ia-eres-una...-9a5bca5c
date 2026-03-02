@@ -211,6 +211,56 @@ export const PERIOD_LIMITS = {
   afternoon: { start: 840, end: 1080 },
 };
 
+/**
+ * Obtiene los horarios de tarde según la doctora y el día de la semana.
+ * Dra. Sandra Simancas:
+ * - Lunes a Miércoles: última cita a las 4:30 PM
+ * - Jueves y Viernes: última cita a las 5:00 PM
+ * Otras doctoras: horario estándar hasta las 5:00 PM
+ */
+export function getAfternoonSlots(doctorId: string | undefined, date: Date): typeof TIME_SLOTS_CONFIG.afternoon {
+  // Si no es Dra. Sandra, retornar horario completo
+  if (doctorId !== "dra-sandra") {
+    return TIME_SLOTS_CONFIG.afternoon;
+  }
+
+  // Para Dra. Sandra, verificar el día de la semana
+  const dayOfWeek = date.getDay(); // 0 = Domingo, 1 = Lunes, ..., 5 = Viernes
+
+  // Lunes (1), Martes (2), Miércoles (3): última cita a las 4:30 PM
+  if (dayOfWeek >= 1 && dayOfWeek <= 3) {
+    return TIME_SLOTS_CONFIG.afternoon.filter(slot => slot.hour <= "16:30");
+  }
+
+  // Jueves (4), Viernes (5): última cita a las 5:00 PM (horario completo)
+  if (dayOfWeek >= 4 && dayOfWeek <= 5) {
+    return TIME_SLOTS_CONFIG.afternoon;
+  }
+
+  // Por defecto (no debería llegar aquí en días laborales)
+  return TIME_SLOTS_CONFIG.afternoon;
+}
+
+/**
+ * Obtiene el límite de periodo de tarde según la doctora y el día de la semana.
+ */
+export function getAfternoonPeriodLimit(doctorId: string | undefined, date: Date): { start: number; end: number } {
+  // Si no es Dra. Sandra, retornar límite estándar
+  if (doctorId !== "dra-sandra") {
+    return PERIOD_LIMITS.afternoon;
+  }
+
+  const dayOfWeek = date.getDay();
+
+  // Lunes a Miércoles: límite hasta 17:00 (5:00 PM) = 1020 minutos
+  if (dayOfWeek >= 1 && dayOfWeek <= 3) {
+    return { start: 840, end: 1020 }; // 4:30 PM + 30 min = 5:00 PM
+  }
+
+  // Jueves y Viernes: límite estándar hasta 18:00 (6:00 PM)
+  return PERIOD_LIMITS.afternoon;
+}
+
 /** Maximo 2 citas por horario (2 doctoras trabajando simultáneamente) */
 export const MAX_APPOINTMENTS_PER_SLOT = 2;
 
