@@ -85,7 +85,7 @@ const CALENDAR_ID = process.env.CALENDAR_ID || 'primary';
  * Columna D  = Telefono
  * Columna E  = Fecha (DD/MM/AAAA)
  * Columna F  = Hora (HH:MM) - hora de inicio
- * Columna G  = Estado (Activa | Reagendada | Cancelada | Completada)
+ * Columna G  = Estado (Activa | Cancelada | Atendida)
  * Columna H  = Accion (Agendamiento | Reagendamiento | Cancelacion)
  * Columna I  = Servicio (nombre del servicio + tipo de cita)
  * Columna J  = HoraFin (HH:MM) - hora de finalizacion
@@ -150,7 +150,9 @@ function calcHoraFin(hora, duracion) {
 
 /**
  * GET /api/citas/active/:cedula
- * Verificar si un paciente tiene una cita activa o reagendada pendiente.
+ * Verificar si un paciente tiene una cita activa pendiente.
+ * Solo bloquea si el estado es "Activa".
+ * Si el estado es "Cancelada" o "Atendida", el usuario puede agendar normalmente.
  * Retorna { hasActiveAppointment: true/false, appointment: { ... } }
  */
 app.get('/api/citas/active/:cedula', async (req, res) => {
@@ -170,11 +172,12 @@ app.get('/api/citas/active/:cedula', async (req, res) => {
     // Buscar cita activa
     // Col A (index 0) = Cedula
     // Col G (index 6) = Estado
+    // Solo bloquear si el estado es exactamente "Activa"
     const activeAppointmentRow = rows.find(row => {
       const rowCedula = (row[0] || '').toString().trim();
       const estado = (row[6] || '').toString().trim();
 
-      return rowCedula === cedula && (estado === 'Activa' || estado === 'Reagendada');
+      return rowCedula === cedula && estado === 'Activa';
     });
 
     if (activeAppointmentRow) {
@@ -190,7 +193,7 @@ app.get('/api/citas/active/:cedula', async (req, res) => {
       return res.json({
         success: true,
         hasActiveAppointment: true,
-        message: 'El usuario ya tiene una cita activa.',
+        message: 'Ya tienes una cita activa. No puedes agendar más de una cita a la vez.',
         appointment: cita
       });
     }
@@ -376,6 +379,7 @@ app.post('/api/citas', async (req, res) => {
 /**
  * PUT /api/citas/:id
  * Reagendar una cita (actualiza fecha/hora en Sheets, recalcula HoraFin)
+ * El estado se mantiene como "Activa" después del reagendamiento
  */
 app.put('/api/citas/:id', async (req, res) => {
   try {
@@ -411,7 +415,7 @@ app.put('/api/citas/:id', async (req, res) => {
           row[3] || '',   // D: telefono (se preserva)
           fecha,          // E: nueva fecha
           hora,           // F: nueva hora
-          'Reagendada',   // G: estado
+          'Activa',       // G: estado (se mantiene como Activa)
           'Reagendamiento', // H: accion
           row[8] || '',   // I: servicio (se preserva)
           newHoraFin,     // J: hora fin (recalculada)
