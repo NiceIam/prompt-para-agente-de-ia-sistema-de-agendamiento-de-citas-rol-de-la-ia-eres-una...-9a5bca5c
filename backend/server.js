@@ -149,10 +149,80 @@ function calcHoraFin(hora, duracion) {
 // ================================================================
 
 /**
+ * Convierte fecha DD/MM/AAAA y hora HH:MM a objeto Date en zona horaria de Colombia
+ */
+function parseAppointmentDateTime(fecha, hora) {
+  try {
+    const [dia, mes, anio] = fecha.split('/').map(Number);
+    const [h, m] = hora.split(':').map(Number);
+    // Crear fecha en zona horaria de Colombia (UTC-5)
+    return new Date(anio, mes - 1, dia, h, m);
+  } catch (error) {
+    console.error('Error al parsear fecha/hora:', error);
+    return null;
+  }
+}
+
+/**
+ * Actualiza automáticamente el estado de una cita a "Atendida" si ya pasó la hora de finalización
+ */
+async function autoUpdateExpiredAppointment(rowNumber, row) {
+  try {
+    const fecha = row[4]; // Col E
+    const horaFin = row[9]; // Col J
+    const estado = (row[6] || '').toString().trim(); // Col G
+
+    // Solo actualizar si el estado actual es "Activa"
+    if (estado !== 'Activa') {
+      return false;
+    }
+
+    if (!fecha || !horaFin) {
+      return false;
+    }
+
+    const appointmentEndTime = parseAppointmentDateTime(fecha, horaFin);
+    if (!appointmentEndTime) {
+      return false;
+    }
+
+    const now = new Date();
+    
+    // Si ya pasó la hora de finalización, actualizar a "Atendida"
+    if (now > appointmentEndTime) {
+      const timestamp = now.toISOString();
+      
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `${SHEET_NAME}!G${rowNumber}:H${rowNumber}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [['Atendida', 'Atendida']] },
+      });
+
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `${SHEET_NAME}!N${rowNumber}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [[timestamp]] },
+      });
+
+      console.log(`✅ Cita auto-actualizada a "Atendida": fila ${rowNumber} (${fecha} ${horaFin})`);
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.error('Error al auto-actualizar cita:', error.message);
+    return false;
+  }
+}
+
+/**
  * GET /api/citas/active/:cedula
  * Verificar si un paciente tiene una cita activa pendiente.
- * Solo bloquea si el estado es "Activa".
- * Si el estado es "Cancelada" o "Atendida", el usuario puede agendar normalmente.
+ * - Actualiza automáticamente citas vencidas a "Atendida"
+ * - Respeta cambios manuales hechos en Google Sheets
+ * - Solo bloquea si el estado es "Activa" y aún no ha pasado la hora
  * Retorna { hasActiveAppointment: true/false, appointment: { ... } }
  */
 app.get('/api/citas/active/:cedula', async (req, res) => {
@@ -169,35 +239,44 @@ app.get('/api/citas/active/:cedula', async (req, res) => {
 
     const rows = response.data.values || [];
 
-    // Buscar cita activa
-    // Col A (index 0) = Cedula
-    // Col G (index 6) = Estado
-    // Solo bloquear si el estado es exactamente "Activa"
-    const activeAppointmentRow = rows.find(row => {
+    // Buscar todas las citas del paciente con estado "Activa"
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
       const rowCedula = (row[0] || '').toString().trim();
       const estado = (row[6] || '').toString().trim();
 
-      return rowCedula === cedula && estado === 'Activa';
-    });
+      if (rowCedula === cedula && estado === 'Activa') {
+        const rowNumber = i + 2; // +2 porque empezamos en A2
+        
+        // Intentar actualizar automáticamente si ya pasó la hora
+        const wasUpdated = await autoUpdateExpiredAppointment(rowNumber, row);
+        
+        // Si se actualizó, continuar buscando otras citas activas
+        if (wasUpdated) {
+          continue;
+        }
 
-    if (activeAppointmentRow) {
-      const cita = {
-        cedula: activeAppointmentRow[0],
-        nombre: activeAppointmentRow[1],
-        fecha: activeAppointmentRow[4],
-        hora: activeAppointmentRow[5],
-        estado: activeAppointmentRow[6],
-        servicio: activeAppointmentRow[8]
-      };
+        // Si llegamos aquí, la cita sigue activa y no ha pasado la hora
+        const cita = {
+          cedula: row[0],
+          nombre: row[1],
+          fecha: row[4],
+          hora: row[5],
+          horaFin: row[9],
+          estado: row[6],
+          servicio: row[8]
+        };
 
-      return res.json({
-        success: true,
-        hasActiveAppointment: true,
-        message: 'Ya tienes una cita activa. No puedes agendar más de una cita a la vez.',
-        appointment: cita
-      });
+        return res.json({
+          success: true,
+          hasActiveAppointment: true,
+          message: 'Ya tienes una cita activa. No puedes agendar más de una cita a la vez.',
+          appointment: cita
+        });
+      }
     }
 
+    // No se encontró ninguna cita activa pendiente
     return res.json({
       success: true,
       hasActiveAppointment: false,
@@ -210,6 +289,42 @@ app.get('/api/citas/active/:cedula', async (req, res) => {
   }
 });
 
+
+/**
+ * POST /api/citas/update-expired
+ * Actualiza todas las citas vencidas a "Atendida"
+ * Útil para ejecutar manualmente o con un cron job
+ */
+app.post('/api/citas/update-expired', async (req, res) => {
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEET_NAME}!A2:N`,
+    });
+
+    const rows = response.data.values || [];
+    let updatedCount = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNumber = i + 2;
+      const wasUpdated = await autoUpdateExpiredAppointment(rowNumber, row);
+      if (wasUpdated) {
+        updatedCount++;
+      }
+    }
+
+    console.log(`✅ Proceso de actualización completado: ${updatedCount} citas actualizadas`);
+    res.json({ 
+      success: true, 
+      message: `${updatedCount} citas actualizadas a "Atendida"`,
+      updatedCount 
+    });
+  } catch (error) {
+    console.error('Error al actualizar citas vencidas:', error.message);
+    res.status(500).json({ success: false, message: 'Error al actualizar citas: ' + error.message });
+  }
+});
 
 /**
  * GET /api/citas
