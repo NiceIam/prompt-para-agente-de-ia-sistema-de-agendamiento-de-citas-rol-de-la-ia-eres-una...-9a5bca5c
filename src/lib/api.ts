@@ -62,8 +62,8 @@ export async function fetchAllCitas(): Promise<CitaBackend[]> {
  * - Una cita de 30 min ocupa 1 slot; una cita de 60 min ocupa 2 slots consecutivos.
  * - Si la cita de 60 min se sale del periodo (mañana o tarde), no se permite.
  * - Se usa deteccion de solapamiento: [inicio_propuesto, fin_propuesto) vs [inicio_existente, fin_existente).
- * - Se incluyen citas "Activa" y "Reagendada" como ocupadas (ambas son citas vigentes).
- * - Horarios personalizados por doctora y día de la semana.
+ * - Solo se consideran citas con estado "Activa" como ocupadas.
+ * - Citas "Cancelada" o "Atendida" no bloquean horarios.
  */
 export async function getAvailability(
   date: string,
@@ -76,9 +76,10 @@ export async function getAvailability(
   const normalizedDate = normalizeDate(date);
 
   // Citas vigentes de ESTA doctora en esta fecha
+  // Solo considerar citas con estado "Activa"
   const citasDoctorEnFecha = allCitas.filter(
     (c) =>
-      (c.estado === "Activa" || c.estado === "Reagendada") &&
+      c.estado === "Activa" &&
       normalizeDate(c.fecha) === normalizedDate &&
       c.doctora === doctorName
   );
