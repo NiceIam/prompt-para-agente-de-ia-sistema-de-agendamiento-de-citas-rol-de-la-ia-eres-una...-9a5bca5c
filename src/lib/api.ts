@@ -6,6 +6,9 @@ import {
   PERIOD_LIMITS,
   normalizeHour,
   hourToMinutes,
+  getAfternoonSlots,
+  getAfternoonPeriodLimit,
+  DOCTORS,
 } from "./types";
 import { API_BASE_URL } from "./config";
 
@@ -60,6 +63,7 @@ export async function fetchAllCitas(): Promise<CitaBackend[]> {
  * - Si la cita de 60 min se sale del periodo (mañana o tarde), no se permite.
  * - Se usa deteccion de solapamiento: [inicio_propuesto, fin_propuesto) vs [inicio_existente, fin_existente).
  * - Se incluyen citas "Activa" y "Reagendada" como ocupadas (ambas son citas vigentes).
+ * - Horarios personalizados por doctora y día de la semana.
  */
 export async function getAvailability(
   date: string,
@@ -79,13 +83,24 @@ export async function getAvailability(
       c.doctora === doctorName
   );
 
+  // Obtener el doctorId a partir del nombre
+  const doctor = DOCTORS.find((d) => d.name === doctorName);
+  const doctorId = doctor?.id;
+
+  // Convertir fecha DD/MM/AAAA a Date object
+  const [day, month, year] = date.split("/").map(Number);
+  const dateObj = new Date(year, month - 1, day);
+
+  // Obtener slots de tarde personalizados según doctora y día
+  const afternoonSlots = getAfternoonSlots(doctorId, dateObj);
+
   // Armar la lista de slots con disponibilidad
   const allSlots = [
     ...TIME_SLOTS_CONFIG.morning.map((s) => ({
       ...s,
       period: "morning" as const,
     })),
-    ...TIME_SLOTS_CONFIG.afternoon.map((s) => ({
+    ...afternoonSlots.map((s) => ({
       ...s,
       period: "afternoon" as const,
     })),
@@ -95,8 +110,12 @@ export async function getAvailability(
     const slotStartMin = hourToMinutes(slot.hour);
     const slotEndMin = slotStartMin + duration;
 
+    // Obtener límite de periodo personalizado
+    const periodLimit = slot.period === "morning" 
+      ? PERIOD_LIMITS.morning 
+      : getAfternoonPeriodLimit(doctorId, dateObj);
+
     // ¿La cita propuesta cabe dentro del periodo (no se sale a almuerzo ni cierre)?
-    const periodLimit = PERIOD_LIMITS[slot.period];
     if (slotEndMin > periodLimit.end) {
       return { ...slot, available: false, spotsLeft: 0 };
     }
