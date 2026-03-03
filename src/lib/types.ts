@@ -95,6 +95,7 @@ export const SERVICES: ServiceCategory[] = [
       { id: "control-ortodoncia", name: "Control de Ortodoncia", duration: 30 },
       { id: "montaje-brackets", name: "Montaje de Brackets", duration: 60 },
       { id: "procedimiento-dental", name: "Procedimiento dental", duration: 90 },
+      { id: "atencion-odontologica", name: "Atención odontológica", duration: 60 },
     ],
   },
   {
@@ -112,7 +113,7 @@ export const SERVICES: ServiceCategory[] = [
     name: "Odontología General",
     doctorId: "dra-zaira",
     appointmentTypes: [
-      { id: "valoracion-general", name: "Valoración General", duration: 30 },
+      { id: "valoracion-general", name: "Valoración General", duration: 60 },
       { id: "procedimiento-general", name: "Procedimiento General", duration: 60 },
       { id: "mantenimiento-diseno", name: "Mantenimiento de diseño", duration: 120 },
     ],
@@ -298,8 +299,10 @@ export const HOLIDAYS_2026: string[] = [
   "01/01/2026",
   "12/01/2026",
   "23/03/2026",
-  "02/04/2026",
-  "03/04/2026",
+  "01/04/2026", // Semana Santa
+  "02/04/2026", // Semana Santa
+  "03/04/2026", // Semana Santa
+  "04/04/2026", // Semana Santa
   "01/05/2026",
   "18/05/2026",
   "15/06/2026",

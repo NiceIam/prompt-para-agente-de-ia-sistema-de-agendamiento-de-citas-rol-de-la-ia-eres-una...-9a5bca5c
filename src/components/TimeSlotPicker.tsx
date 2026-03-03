@@ -39,7 +39,11 @@ export function TimeSlotPicker({
       <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-800 dark:bg-blue-950/30 dark:border-blue-900 dark:text-blue-300">
         <Info className="w-4 h-4 flex-shrink-0" />
         <p className="text-sm">
-          {duration === 60
+          {duration === 120
+            ? "Tu cita dura 2 horas. Se reservarán 4 bloques consecutivos de 30 minutos."
+            : duration === 90
+            ? "Tu cita dura 1.5 horas. Se reservarán 3 bloques consecutivos de 30 minutos."
+            : duration === 60
             ? "Tu cita dura 1 hora. Se reservarán 2 bloques consecutivos de 30 minutos."
             : "Tu cita dura 30 minutos."}
         </p>
