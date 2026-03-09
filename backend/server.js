@@ -156,7 +156,10 @@ function parseAppointmentDateTime(fecha, hora) {
     const [dia, mes, anio] = fecha.split('/').map(Number);
     const [h, m] = hora.split(':').map(Number);
     // Crear fecha en zona horaria de Colombia (UTC-5)
-    return new Date(anio, mes - 1, dia, h, m);
+    // Para evitar problemas con la zona horaria del servidor, construimos un string ISO con offset -05:00
+    const pad = (n) => n.toString().padStart(2, '0');
+    const isoString = `${anio}-${pad(mes)}-${pad(dia)}T${pad(h)}:${pad(m)}:00-05:00`;
+    return new Date(isoString);
   } catch (error) {
     console.error('Error al parsear fecha/hora:', error);
     return null;
@@ -169,7 +172,7 @@ function parseAppointmentDateTime(fecha, hora) {
 async function autoUpdateExpiredAppointment(rowNumber, row) {
   try {
     const fecha = row[4]; // Col E
-    const horaFin = row[9]; // Col J
+    const horaInicio = row[5]; // Col F (Hora de inicio)
     const estado = (row[6] || '').toString().trim(); // Col G
 
     // Solo actualizar si el estado actual es "Activa"
@@ -177,21 +180,51 @@ async function autoUpdateExpiredAppointment(rowNumber, row) {
       return false;
     }
 
-    if (!fecha || !horaFin) {
+    if (!fecha || !horaInicio) {
       return false;
     }
 
-    const appointmentEndTime = parseAppointmentDateTime(fecha, horaFin);
-    if (!appointmentEndTime) {
+    const appointmentStartTime = parseAppointmentDateTime(fecha, horaInicio);
+    if (!appointmentStartTime) {
       return false;
     }
 
     const now = new Date();
-    
-    // Si ya pasó la hora de finalización, actualizar a "Atendida"
-    if (now > appointmentEndTime) {
+    // Obtener la fecha/hora actual exactamente en la zona horaria de Colombia
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Bogota',
+      year: 'numeric', month: 'numeric', day: 'numeric',
+      hour: 'numeric', minute: 'numeric', second: 'numeric',
+      hour12: false,
+    });
+
+    // El formatter devuelve algo como "3/8/2026, 20:30:00". Parsear a Date asumiendo el mismo instante.
+    // Esto asegura que "nowCol" tenga la misma "hora local" que "appointmentEndTime"
+    // Pero la mejor forma de comparar es usar strings ISO o crear un Date con offset -05:00 de Colombia
+
+    // Forma segura: Generar el string ISO del momento actual en Colombia:
+    const nowParts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Bogota',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false,
+    }).formatToParts(now);
+
+    const parts = {};
+    nowParts.forEach(({ type, value }) => parts[type] = value);
+    // Aseguramos formato estandarizado: YYYY-MM-DDTHH:mm:ss-05:00
+    // En Date objects formatea 24 -> 00, Intl.DateTimeFormat 'hour24' devuelve 24 a la medianoche. Usar 'hourCycle: h23' en node 12+ 
+    // pero con hour12: false suele bastar. Si sale 24 arreglarlo:
+    let h = parts.hour;
+    if (h === '24') h = '00';
+
+    const nowColombiaIso = `${parts.year}-${parts.month}-${parts.day}T${h}:${parts.minute}:${parts.second}-05:00`;
+    const nowColombia = new Date(nowColombiaIso);
+
+    // Si ya pasó o es igual a la hora de inicio en Colombia, actualizar a "Atendida"
+    if (nowColombia >= appointmentStartTime) {
       const timestamp = now.toISOString();
-      
+
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
         range: `${SHEET_NAME}!G${rowNumber}:H${rowNumber}`,
@@ -247,10 +280,10 @@ app.get('/api/citas/active/:cedula', async (req, res) => {
 
       if (rowCedula === cedula && estado === 'Activa') {
         const rowNumber = i + 2; // +2 porque empezamos en A2
-        
+
         // Intentar actualizar automáticamente si ya pasó la hora
         const wasUpdated = await autoUpdateExpiredAppointment(rowNumber, row);
-        
+
         // Si se actualizó, continuar buscando otras citas activas
         if (wasUpdated) {
           continue;
@@ -315,10 +348,10 @@ app.post('/api/citas/update-expired', async (req, res) => {
     }
 
     console.log(`✅ Proceso de actualización completado: ${updatedCount} citas actualizadas`);
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: `${updatedCount} citas actualizadas a "Atendida"`,
-      updatedCount 
+      updatedCount
     });
   } catch (error) {
     console.error('Error al actualizar citas vencidas:', error.message);
