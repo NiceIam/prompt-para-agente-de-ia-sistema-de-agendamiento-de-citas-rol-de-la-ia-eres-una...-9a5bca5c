@@ -144,6 +144,17 @@ function calcHoraFin(hora, duracion) {
   return `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
 }
 
+/**
+ * Convierte hora de formato 24h (HH:MM) a formato 12h (h:MM AM/PM)
+ * Ej: "14:00" -> "2:00 PM", "09:30" -> "9:30 AM"
+ */
+function convertTo12HourFormat(hora24) {
+  const [h, m] = hora24.split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${h12}:${m.toString().padStart(2, '0')} ${period}`;
+}
+
 // ================================================================
 // ENDPOINTS - CITAS (Google Sheets)
 // ================================================================
@@ -477,14 +488,21 @@ app.post('/api/citas', async (req, res) => {
     // ================================================================
     try {
       const webhookUrl = 'https://n8n-n8n.dtbfmw.easypanel.host/webhook/c8b807da-3296-402f-b7b2-d8d4546075f6';
+      
+      // Convertir horas a formato 12h para el recordatorio
+      const hora12h = convertTo12HourFormat(hora);
+      const horaFin12h = convertTo12HourFormat(horaFin);
+      
       const webhookPayload = {
         cedula,
         nombre,
         correo,
         telefono,
         fecha,
-        hora,
-        horaFin,
+        hora: hora12h,           // Formato 12h: "2:00 PM"
+        horaFin: horaFin12h,     // Formato 12h: "3:00 PM"
+        hora24h: hora,           // Formato 24h original: "14:00" (por si lo necesitas)
+        horaFin24h: horaFin,     // Formato 24h original: "15:00" (por si lo necesitas)
         duracion: dur,
         servicio,
         doctora,
