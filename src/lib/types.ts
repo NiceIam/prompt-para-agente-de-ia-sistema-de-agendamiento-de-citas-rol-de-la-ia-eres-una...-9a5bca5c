@@ -298,7 +298,9 @@ export function minutesToLabel(minutes: number): string {
 export const HOLIDAYS_2026: string[] = [
   "01/01/2026",
   "12/01/2026",
+  "17/03/2026", // Día bloqueado
   "23/03/2026",
+  "24/03/2026", // Día bloqueado
   "01/04/2026", // Semana Santa
   "02/04/2026", // Semana Santa
   "03/04/2026", // Semana Santa
